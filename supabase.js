@@ -1,11 +1,9 @@
-// Supabaseの接続設定
-
 const SUPABASE_URL = "https://vgnjlseucwmsfatmikms.supabase.coPublishable key";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_p8DkYPSFXTXQnCHqnNdggQ_Blv_HcqR";
 
-const supabaseClient = window.supabase.createClient(
+const mySupabase = window.supabase.createClient(
     SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY
 );
 
-console.log("Supabase接続準備OK");
+console.log("Supabase接続OK");
