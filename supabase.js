@@ -7,3 +7,5 @@ const supabaseClient = window.supabase.createClient(
     SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY
 );
+
+console.log("Supabase接続準備OK");
