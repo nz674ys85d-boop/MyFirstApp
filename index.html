@@ -1,89 +1,268 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
     <title>MyFirstApp - 家計簿</title>
+
     <link rel="stylesheet" href="style.css">
 </head>
+
 
 <body>
 
     <div class="app">
 
-        <header>
-            <h1>MyFirstApp</h1>
-            <p>かんたん家計簿</p>
-        </header>
+        <!-- =========================
+             ログイン画面
+        ========================== -->
 
-        <main>
+        <section id="loginScreen" class="screen">
 
-            <!-- 今月の合計 -->
-            <section class="summary">
-                <p>今月の支出</p>
-                <div class="total">
-                    ¥<span id="totalAmount">0</span>
-                </div>
-            </section>
+            <div class="login-box">
 
-            <!-- 支出入力 -->
-            <section class="input-section">
-                <h2>支出を追加</h2>
+                <h1>MyFirstApp</h1>
+
+                <p class="subtitle">
+                    かんたん家計簿
+                </p>
+
+
+                <h2>ログイン</h2>
+
 
                 <div class="form-group">
-                    <label for="amount">金額</label>
+
+                    <label for="loginEmail">
+                        ID
+                    </label>
+
                     <input
-                        type="number"
-                        id="amount"
-                        placeholder="例：1000"
-                        min="0"
+                        type="email"
+                        id="loginEmail"
+                        placeholder="メールアドレス"
+                        autocomplete="username"
                     >
+
                 </div>
 
-                <div class="form-group">
-                    <label for="category">項目</label>
-                    <select id="category">
-                        <option value="食費">食費</option>
-                        <option value="日用品">日用品</option>
-                        <option value="交通費">交通費</option>
-                        <option value="趣味">趣味</option>
-                        <option value="美容">美容</option>
-                        <option value="その他">その他</option>
-                    </select>
-                </div>
 
                 <div class="form-group">
-                    <label for="memo">メモ</label>
+
+                    <label for="loginPassword">
+                        パスワード
+                    </label>
+
                     <input
-                        type="text"
-                        id="memo"
-                        placeholder="例：スーパー"
+                        type="password"
+                        id="loginPassword"
+                        placeholder="パスワード"
+                        autocomplete="current-password"
                     >
+
                 </div>
 
-                <button id="addButton" class="add-button">
-                    支出を追加
+
+                <button
+                    id="loginButton"
+                    class="add-button"
+                >
+                    ログイン
                 </button>
 
-            </section>
 
-            <!-- 支出一覧 -->
-            <section class="list-section">
-                <h2>支出一覧</h2>
+                <p
+                    id="loginError"
+                    class="error-message"
+                ></p>
 
-                <div id="expenseList">
-                    <p id="emptyMessage" class="empty-message">
-                        まだ支出がありません
+            </div>
+
+        </section>
+
+
+        <!-- =========================
+             家計簿画面
+        ========================== -->
+
+        <section
+            id="appScreen"
+            class="screen hidden"
+        >
+
+            <header>
+
+                <div>
+                    <h1>MyFirstApp</h1>
+
+                    <p>
+                        かんたん家計簿
                     </p>
                 </div>
 
-            </section>
 
-        </main>
+                <button
+                    id="logoutButton"
+                    class="logout-button"
+                >
+                    ログアウト
+                </button>
+
+            </header>
+
+
+            <main>
+
+                <!-- 今月の合計 -->
+
+                <section class="summary">
+
+                    <p>
+                        今月の支出
+                    </p>
+
+                    <div class="total">
+                        ¥<span id="totalAmount">0</span>
+                    </div>
+
+                </section>
+
+
+                <!-- 支出入力 -->
+
+                <section class="input-section">
+
+                    <h2>
+                        支出を追加
+                    </h2>
+
+
+                    <div class="form-group">
+
+                        <label for="amount">
+                            金額
+                        </label>
+
+                        <input
+                            type="number"
+                            id="amount"
+                            placeholder="例：1000"
+                            min="0"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="category">
+                            項目
+                        </label>
+
+                        <select id="category">
+
+                            <option value="食費">
+                                食費
+                            </option>
+
+                            <option value="日用品">
+                                日用品
+                            </option>
+
+                            <option value="交通費">
+                                交通費
+                            </option>
+
+                            <option value="趣味">
+                                趣味
+                            </option>
+
+                            <option value="美容">
+                                美容
+                            </option>
+
+                            <option value="その他">
+                                その他
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="memo">
+                            メモ
+                        </label>
+
+                        <input
+                            type="text"
+                            id="memo"
+                            placeholder="例：スーパー"
+                        >
+
+                    </div>
+
+
+                    <button
+                        id="addButton"
+                        class="add-button"
+                    >
+                        支出を追加
+                    </button>
+
+                </section>
+
+
+                <!-- 支出一覧 -->
+
+                <section class="list-section">
+
+                    <h2>
+                        支出一覧
+                    </h2>
+
+                    <div id="expenseList">
+
+                        <p
+                            id="emptyMessage"
+                            class="empty-message"
+                        >
+                            まだ支出がありません
+                        </p>
+
+                    </div>
+
+                </section>
+
+            </main>
+
+        </section>
 
     </div>
+
+
+    <!-- Supabase本体 -->
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+
+    <!-- 自分のSupabase設定 -->
+
+    <script src="supabase.js"></script>
+
+
+    <!-- MyFirstAppの処理 -->
 
     <script src="script.js"></script>
 
 </body>
+
 </html>
