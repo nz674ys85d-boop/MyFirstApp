@@ -217,6 +217,21 @@ logoutButton.addEventListener(
     }
 );
 
+// ==============================
+// 支出追加ボタン
+// ==============================
+
+const addButton =
+    document.getElementById("addButton");
+
+addButton.addEventListener(
+    "click",
+    function() {
+
+        addExpense();
+
+    }
+);
 
 // ==============================
 // 家計簿
