@@ -5,7 +5,6 @@
 const loginScreen = document.getElementById("loginScreen");
 const appScreen = document.getElementById("appScreen");
 
-const loginForm = document.getElementById("loginForm");
 const loginEmail = document.getElementById("loginEmail");
 const loginPassword = document.getElementById("loginPassword");
 const loginButton = document.getElementById("loginButton");
@@ -189,16 +188,15 @@ async function checkLogin() {
 
 
 // ==============================
-// ログインフォーム
+// ログインボタン
 // ==============================
 
-loginForm.addEventListener(
-    "submit",
-    function(event) {
-
-        event.preventDefault();
+loginButton.addEventListener(
+    "click",
+    function() {
 
         login();
+
     }
 );
 
