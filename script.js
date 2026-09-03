@@ -2,15 +2,29 @@
 // 要素を取得
 // ==============================
 
-const loginScreen = document.getElementById("loginScreen");
-const appScreen = document.getElementById("appScreen");
+const loginScreen =
+    document.getElementById("loginScreen");
 
-const loginEmail = document.getElementById("loginEmail");
-const loginPassword = document.getElementById("loginPassword");
-const loginButton = document.getElementById("loginButton");
-const loginError = document.getElementById("loginError");
+const appScreen =
+    document.getElementById("appScreen");
 
-const logoutButton = document.getElementById("logoutButton");
+const loginEmail =
+    document.getElementById("loginEmail");
+
+const loginPassword =
+    document.getElementById("loginPassword");
+
+const loginButton =
+    document.getElementById("loginButton");
+
+const loginError =
+    document.getElementById("loginError");
+
+const logoutButton =
+    document.getElementById("logoutButton");
+
+const addButton =
+    document.getElementById("addButton");
 
 
 // ==============================
@@ -19,33 +33,55 @@ const logoutButton = document.getElementById("logoutButton");
 
 async function login() {
 
-    const email = loginEmail.value.trim();
-    const password = loginPassword.value;
+    const email =
+        loginEmail.value.trim();
+
+    const password =
+        loginPassword.value;
 
     loginError.textContent = "";
 
+
     if (!email || !password) {
+
         loginError.textContent =
             "IDとパスワードを入力してください。";
+
         return;
     }
 
+
     loginButton.disabled = true;
-    loginButton.textContent = "ログイン中…";
+
+    loginButton.textContent =
+        "ログイン中…";
+
 
     try {
 
-        console.log("ログイン処理開始");
+        console.log(
+            "ログイン処理開始"
+        );
+
 
         const {
             data,
             error
         } = await mySupabase.auth.signInWithPassword({
+
             email: email,
+
             password: password
+
         });
 
-        console.log("Supabaseから返答:", data, error);
+
+        console.log(
+            "Supabaseから返答:",
+            data,
+            error
+        );
+
 
         if (error) {
 
@@ -55,10 +91,12 @@ async function login() {
             );
 
             loginError.textContent =
-                "ログインエラー: " + error.message;
+                "ログインエラー: " +
+                error.message;
 
             return;
         }
+
 
         if (!data.session) {
 
@@ -68,16 +106,21 @@ async function login() {
             return;
         }
 
+
         console.log(
             "ログイン成功:",
             data.user.email
         );
 
+
         loginPassword.value = "";
+
 
         showAppScreen();
 
-        loadExpenses();
+
+        await loadExpenses();
+
 
     } catch (error) {
 
@@ -106,10 +149,13 @@ async function login() {
 
 function showLoginScreen() {
 
-    loginScreen.classList.remove("hidden");
+    loginScreen.classList.remove(
+        "hidden"
+    );
 
-    appScreen.classList.add("hidden");
-
+    appScreen.classList.add(
+        "hidden"
+    );
 }
 
 
@@ -119,10 +165,13 @@ function showLoginScreen() {
 
 function showAppScreen() {
 
-    loginScreen.classList.add("hidden");
+    loginScreen.classList.add(
+        "hidden"
+    );
 
-    appScreen.classList.remove("hidden");
-
+    appScreen.classList.remove(
+        "hidden"
+    );
 }
 
 
@@ -132,12 +181,24 @@ function showAppScreen() {
 
 async function logout() {
 
-    await mySupabase.auth.signOut();
+    try {
 
-    showLoginScreen();
+        await mySupabase.auth.signOut();
 
-    loginEmail.value = "";
-    loginPassword.value = "";
+        showLoginScreen();
+
+        loginEmail.value = "";
+
+        loginPassword.value = "";
+
+    } catch (error) {
+
+        console.error(
+            "ログアウトエラー:",
+            error
+        );
+
+    }
 }
 
 
@@ -154,6 +215,7 @@ async function checkLogin() {
             error
         } = await mySupabase.auth.getSession();
 
+
         if (error) {
 
             console.error(
@@ -162,8 +224,10 @@ async function checkLogin() {
             );
 
             showLoginScreen();
+
             return;
         }
+
 
         if (data.session) {
 
@@ -172,11 +236,13 @@ async function checkLogin() {
             );
 
             showAppScreen();
-            loadExpenses();
+
+            await loadExpenses();
 
         } else {
 
             showLoginScreen();
+
         }
 
     } catch (error) {
@@ -214,15 +280,14 @@ logoutButton.addEventListener(
     function() {
 
         logout();
+
     }
 );
+
 
 // ==============================
 // 支出追加ボタン
 // ==============================
-
-const addButton =
-    document.getElementById("addButton");
 
 addButton.addEventListener(
     "click",
@@ -233,56 +298,161 @@ addButton.addEventListener(
     }
 );
 
+
 // ==============================
 // 家計簿
 // ==============================
 
-let expenses =
-    JSON.parse(
-        localStorage.getItem("expenses")
-    ) || [];
+let expenses = [];
 
 
 // ==============================
-// 家計簿表示
+// Supabaseから支出を取得
 // ==============================
 
-function loadExpenses() {
+async function loadExpenses() {
+
+    try {
+
+        console.log(
+            "Supabaseから支出を取得します"
+        );
+
+
+        const {
+            data,
+            error
+        } = await mySupabase
+            .from("expenses")
+            .select("*")
+            .order(
+                "created_at",
+                {
+                    ascending: false
+                }
+            );
+
+
+        if (error) {
+
+            console.error(
+                "支出取得エラー:",
+                error
+            );
+
+            alert(
+                "支出データを取得できませんでした。\n" +
+                error.message
+            );
+
+            return;
+        }
+
+
+        expenses =
+            data || [];
+
+
+        displayExpenses();
+
+
+    } catch (error) {
+
+        console.error(
+            "支出取得エラー:",
+            error
+        );
+
+        alert(
+            "支出データの取得中にエラーが発生しました。\n" +
+            error.message
+        );
+    }
+}
+
+
+// ==============================
+// 支出を画面に表示
+// ==============================
+
+function displayExpenses() {
 
     const expenseList =
-        document.getElementById("expenseList");
+        document.getElementById(
+            "expenseList"
+        );
 
     const totalAmount =
-        document.getElementById("totalAmount");
+        document.getElementById(
+            "totalAmount"
+        );
+
 
     expenseList.innerHTML = "";
 
+
     let total = 0;
 
-    expenses.forEach(function(expense, index) {
 
-        total += Number(expense.amount);
+    if (expenses.length === 0) {
 
-        const li =
-            document.createElement("li");
-
-        li.innerHTML = `
-            <div>
-                <strong>${expense.amount.toLocaleString()}円</strong>
-                <span>${expense.category}</span>
-                <small>${expense.memo || ""}</small>
-            </div>
-
-            <button onclick="deleteExpense(${index})">
-                削除
-            </button>
+        expenseList.innerHTML = `
+            <p class="empty-message">
+                まだ支出がありません
+            </p>
         `;
 
-        expenseList.appendChild(li);
-    });
+    }
+
+
+    expenses.forEach(
+        function(expense) {
+
+            total +=
+                Number(expense.amount);
+
+
+            const li =
+                document.createElement(
+                    "li"
+                );
+
+
+            li.innerHTML = `
+                <div>
+                    <strong>
+                        ${Number(
+                            expense.amount
+                        ).toLocaleString()}円
+                    </strong>
+
+                    <span>
+                        ${expense.category}
+                    </span>
+
+                    <small>
+                        ${expense.memo || ""}
+                    </small>
+                </div>
+
+                <button
+                    onclick="deleteExpense('${expense.id}')"
+                >
+                    削除
+                </button>
+            `;
+
+
+            expenseList.appendChild(
+                li
+            );
+
+        }
+    );
+
 
     totalAmount.textContent =
-        total.toLocaleString() + "円";
+        total.toLocaleString();
 }
 
 
@@ -290,49 +460,152 @@ function loadExpenses() {
 // 支出追加
 // ==============================
 
-function addExpense() {
+async function addExpense() {
 
     const amountInput =
-        document.getElementById("amount");
+        document.getElementById(
+            "amount"
+        );
 
     const categoryInput =
-        document.getElementById("category");
+        document.getElementById(
+            "category"
+        );
 
     const memoInput =
-        document.getElementById("memo");
+        document.getElementById(
+            "memo"
+        );
+
 
     const amount =
-        Number(amountInput.value);
+        Number(
+            amountInput.value
+        );
+
 
     const category =
         categoryInput.value;
 
+
     const memo =
         memoInput.value.trim();
 
+
     if (!amount || amount <= 0) {
 
-        alert("金額を入力してください。");
+        alert(
+            "金額を入力してください。"
+        );
+
         return;
     }
 
-    expenses.push({
 
-        amount: amount,
-        category: category,
-        memo: memo
+    try {
 
-    });
+        // 現在ログインしているユーザーを取得
 
-    localStorage.setItem(
-        "expenses",
-        JSON.stringify(expenses)
-    );
+        const {
+            data: {
+                user
+            }
+        } =
+            await mySupabase.auth.getUser();
 
-    amountInput.value = "";
-    memoInput.value = "";
 
-    loadExpenses();
+        if (!user) {
+
+            alert(
+                "ログインしてください。"
+            );
+
+            showLoginScreen();
+
+            return;
+        }
+
+
+        console.log(
+            "現在のユーザー:",
+            user.id
+        );
+
+
+        // Supabaseに支出を保存
+
+        const {
+            data,
+            error
+        } =
+            await mySupabase
+                .from("expenses")
+                .insert({
+
+                    user_id:
+                        user.id,
+
+                    amount:
+                        amount,
+
+                    category:
+                        category,
+
+                    memo:
+                        memo
+
+                })
+                .select()
+                .single();
+
+
+        if (error) {
+
+            console.error(
+                "支出保存エラー:",
+                error
+            );
+
+            alert(
+                "支出を保存できませんでした。\n" +
+                error.message
+            );
+
+            return;
+        }
+
+
+        console.log(
+            "支出保存成功:",
+            data
+        );
+
+
+        // 入力欄を空にする
+
+        amountInput.value = "";
+
+        memoInput.value = "";
+
+
+        // 最新データを再取得
+
+        await loadExpenses();
+
+
+    } catch (error) {
+
+        console.error(
+            "支出保存エラー:",
+            error
+        );
+
+        alert(
+            "エラーが発生しました。\n" +
+            error.message
+        );
+
+    }
 }
 
 
@@ -340,16 +613,71 @@ function addExpense() {
 // 支出削除
 // ==============================
 
-function deleteExpense(index) {
+async function deleteExpense(
+    id
+) {
 
-    expenses.splice(index, 1);
+    if (
+        !confirm(
+            "この支出を削除しますか？"
+        )
+    ) {
 
-    localStorage.setItem(
-        "expenses",
-        JSON.stringify(expenses)
-    );
+        return;
+    }
 
-    loadExpenses();
+
+    try {
+
+        const {
+            error
+        } =
+            await mySupabase
+                .from("expenses")
+                .delete()
+                .eq(
+                    "id",
+                    id
+                );
+
+
+        if (error) {
+
+            console.error(
+                "支出削除エラー:",
+                error
+            );
+
+            alert(
+                "支出を削除できませんでした。\n" +
+                error.message
+            );
+
+            return;
+        }
+
+
+        console.log(
+            "支出削除成功"
+        );
+
+
+        await loadExpenses();
+
+
+    } catch (error) {
+
+        console.error(
+            "支出削除エラー:",
+            error
+        );
+
+        alert(
+            "エラーが発生しました。\n" +
+            error.message
+        );
+
+    }
 }
 
 
