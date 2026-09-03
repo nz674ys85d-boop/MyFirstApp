@@ -41,7 +41,7 @@ async function login() {
         const {
             data,
             error
-        } = await supabaseClient.auth.signInWithPassword({
+        } = await mySupabase.auth.signInWithPassword({
             email: email,
             password: password
         });
@@ -129,7 +129,7 @@ function showAppScreen() {
 
 async function logout() {
 
-    await supabaseClient.auth.signOut();
+    await mySupabase.auth.signOut();
 
     showLoginScreen();
 
@@ -149,7 +149,7 @@ async function checkLogin() {
         const {
             data,
             error
-        } = await supabaseClient.auth.getSession();
+        } = await mySupabase.auth.getSession();
 
         if (error) {
 
