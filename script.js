@@ -106,8 +106,10 @@ async function login() {
 
 function showLoginScreen() {
 
-    loginScreen.style.display = "block";
-    appScreen.style.display = "none";
+    loginScreen.classList.remove("hidden");
+
+    appScreen.classList.add("hidden");
+
 }
 
 
@@ -117,8 +119,10 @@ function showLoginScreen() {
 
 function showAppScreen() {
 
-    loginScreen.style.display = "none";
-    appScreen.style.display = "block";
+    loginScreen.classList.add("hidden");
+
+    appScreen.classList.remove("hidden");
+
 }
 
 
