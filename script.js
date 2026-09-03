@@ -60,12 +60,9 @@ function showAppScreen() {
 async function login() {
 
     const email = loginEmail.value.trim();
-
     const password = loginPassword.value;
 
-
     loginError.textContent = "";
-
 
     if (!email || !password) {
 
@@ -73,56 +70,83 @@ async function login() {
             "IDとパスワードを入力してください。";
 
         return;
-
     }
-
 
     loginButton.disabled = true;
-
     loginButton.textContent = "ログイン中…";
 
+    try {
 
-    const {
-        data,
-        error
-    } = await supabaseClient.auth.signInWithPassword({
+        console.log("ログイン処理開始");
 
-        email: email,
+        const {
+            data,
+            error
+        } = await supabaseClient.auth.signInWithPassword({
 
-        password: password
+            email: email,
+            password: password
 
-    });
+        });
 
-
-    loginButton.disabled = false;
-
-    loginButton.textContent = "ログイン";
+        console.log("Supabaseから返答:", data, error);
 
 
-    if (error) {
+        if (error) {
 
-        console.error(error);
+            console.error(
+                "Supabaseログインエラー:",
+                error
+            );
+
+            loginError.textContent =
+                "ログインエラー: " + error.message;
+
+            return;
+        }
+
+
+        if (!data.session) {
+
+            loginError.textContent =
+                "ログインセッションを取得できませんでした。";
+
+            return;
+        }
+
+
+        console.log(
+            "ログイン成功:",
+            data.user.email
+        );
+
+
+        loginPassword.value = "";
+
+        showAppScreen();
+
+        loadExpenses();
+
+
+    } catch (error) {
+
+        console.error(
+            "予期しないエラー:",
+            error
+        );
 
         loginError.textContent =
-            "IDまたはパスワードが正しくありません。";
+            "エラーが発生しました: " +
+            error.message;
 
-        return;
+    } finally {
+
+        loginButton.disabled = false;
+
+        loginButton.textContent =
+            "ログイン";
 
     }
-
-
-    console.log(
-        "ログイン成功:",
-        data.user.email
-    );
-
-
-    loginPassword.value = "";
-
-    showAppScreen();
-
-    loadExpenses();
-
 }
 
 
