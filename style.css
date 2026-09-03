@@ -2,8 +2,10 @@
     box-sizing: border-box;
 }
 
+
 body {
     margin: 0;
+
     font-family:
         -apple-system,
         BlinkMacSystemFont,
@@ -15,170 +17,378 @@ body {
     color: #333;
 }
 
+
 .app {
     width: 100%;
     max-width: 600px;
+
     margin: 0 auto;
+
     min-height: 100vh;
+
     background: white;
 }
 
-header {
-    padding: 28px 20px;
+
+.screen {
+    min-height: 100vh;
+}
+
+
+.hidden {
+    display: none !important;
+}
+
+
+/* =========================
+   ログイン画面
+========================= */
+
+#loginScreen {
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: 20px;
+
+    background: #f7f7f7;
+}
+
+
+.login-box {
+    width: 100%;
+    max-width: 400px;
+
+    padding: 32px 24px;
+
+    border-radius: 20px;
+
+    background: white;
+
+    box-shadow:
+        0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+
+.login-box h1 {
+    margin: 0;
+
     text-align: center;
+
+    font-size: 28px;
+}
+
+
+.subtitle {
+    margin: 6px 0 32px;
+
+    text-align: center;
+
+    color: #888;
+
+    font-size: 14px;
+}
+
+
+.login-box h2 {
+    margin-bottom: 20px;
+
+    font-size: 18px;
+}
+
+
+/* =========================
+   ヘッダー
+========================= */
+
+header {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 12px;
+
+    padding: 20px;
+
     background: #f4e9ee;
 }
 
+
 header h1 {
     margin: 0;
-    font-size: 26px;
+
+    font-size: 24px;
 }
 
+
 header p {
-    margin: 6px 0 0;
+    margin: 4px 0 0;
+
     color: #777;
-    font-size: 14px;
+
+    font-size: 13px;
 }
+
+
+.logout-button {
+    padding: 8px 12px;
+
+    border: 1px solid #ddd;
+
+    border-radius: 8px;
+
+    background: white;
+
+    color: #555;
+
+    font-size: 13px;
+
+    cursor: pointer;
+}
+
+
+/* =========================
+   メイン
+========================= */
 
 main {
     padding: 20px;
 }
 
+
 .summary {
     padding: 24px;
+
     margin-bottom: 24px;
+
     text-align: center;
+
     border-radius: 16px;
+
     background: #f8f1f4;
 }
 
+
 .summary p {
     margin: 0 0 8px;
-    font-size: 14px;
+
     color: #777;
+
+    font-size: 14px;
 }
+
 
 .total {
     font-size: 32px;
+
     font-weight: bold;
 }
+
+
+/* =========================
+   フォーム
+========================= */
 
 .input-section,
 .list-section {
     margin-bottom: 30px;
 }
 
+
 h2 {
     margin: 0 0 16px;
+
     font-size: 18px;
 }
+
 
 .form-group {
     margin-bottom: 14px;
 }
 
+
 label {
     display: block;
+
     margin-bottom: 6px;
+
     font-size: 14px;
+
     font-weight: bold;
 }
+
 
 input,
 select {
     width: 100%;
+
     padding: 12px;
+
     border: 1px solid #ddd;
+
     border-radius: 10px;
-    font-size: 16px;
+
     background: white;
+
+    font-size: 16px;
 }
+
 
 input:focus,
 select:focus {
     outline: none;
+
     border-color: #aaa;
 }
 
+
 .add-button {
     width: 100%;
+
     padding: 14px;
+
     margin-top: 4px;
+
     border: none;
+
     border-radius: 10px;
+
     background: #333;
+
     color: white;
+
     font-size: 16px;
+
     font-weight: bold;
+
     cursor: pointer;
 }
+
 
 .add-button:active {
     transform: scale(0.98);
 }
 
+
+/* =========================
+   エラー
+========================= */
+
+.error-message {
+    min-height: 20px;
+
+    margin: 14px 0 0;
+
+    text-align: center;
+
+    color: #c44;
+
+    font-size: 14px;
+}
+
+
+/* =========================
+   支出一覧
+========================= */
+
 .empty-message {
     padding: 30px 10px;
+
     text-align: center;
+
     color: #999;
 }
 
+
 .expense-item {
     display: flex;
+
     align-items: center;
     justify-content: space-between;
+
     gap: 12px;
 
     padding: 14px 0;
+
     border-bottom: 1px solid #eee;
 }
+
 
 .expense-info {
     min-width: 0;
 }
 
+
 .expense-category {
-    font-size: 13px;
     color: #888;
+
+    font-size: 13px;
 }
+
 
 .expense-memo {
     margin-top: 3px;
+
     font-size: 15px;
 }
 
+
 .expense-date {
     margin-top: 3px;
-    font-size: 12px;
+
     color: #aaa;
+
+    font-size: 12px;
 }
+
 
 .expense-right {
     display: flex;
+
     align-items: center;
+
     gap: 10px;
+
     flex-shrink: 0;
 }
+
 
 .expense-amount {
     font-weight: bold;
 }
 
+
 .delete-button {
     padding: 6px 9px;
+
     border: 1px solid #ddd;
+
     border-radius: 7px;
+
     background: white;
+
     color: #777;
+
     cursor: pointer;
 }
 
+
 @media (max-width: 600px) {
+
     main {
         padding: 16px;
     }
 
+
     .summary {
         padding: 20px;
     }
+
+
+    header {
+        padding: 16px;
+    }
+
 }
