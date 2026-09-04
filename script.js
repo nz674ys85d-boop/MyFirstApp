@@ -174,8 +174,8 @@ async function loadSpecialExpenses() {
         .from("special_expenses")
         .select("*")
         .eq("user_id", state.user.id)
-        .order("planned_date", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: true });
+        .order("planned_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
 
     if (error) throw error;
     state.specialExpenses = data || [];
@@ -189,24 +189,200 @@ function getCategoryType(t) {
     return t.categories?.type || "";
 }
 
+// ============================================================
+// 日本の祝日・振替休日を考慮した「実際の給料日」計算
+//
+// 設定上の給料日（例：毎月25日）が土日祝日に当たった場合、
+// その日より前の「平日（祝日を除く月〜金）」へ前倒しする。
+// 祝日は外部APIに依存せず、このアプリ内で自動計算するため、
+// GitHub Pagesだけでも将来の日付を継続して判定できる。
+// ============================================================
+
+function pad2(value) {
+    return String(value).padStart(2, "0");
+}
+
+function makeDateKey(year, monthIndex, day) {
+    return `${year}-${pad2(monthIndex + 1)}-${pad2(day)}`;
+}
+
+function nthWeekdayOfMonth(year, monthIndex, weekday, nth) {
+    // weekday: 0=日曜 ... 6=土曜
+    const first = new Date(year, monthIndex, 1);
+    const offset = (weekday - first.getDay() + 7) % 7;
+    return 1 + offset + (nth - 1) * 7;
+}
+
+function lastDayOfMonth(year, monthIndex) {
+    return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+function vernalEquinoxDay(year) {
+    // 日本の春分日は国立天文台の近似式に基づく計算。
+    // 1980〜2099年の範囲で実用上正確に扱える。
+    return Math.floor(
+        20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4)
+    );
+}
+
+function autumnalEquinoxDay(year) {
+    // 日本の秋分日の近似式。
+    // 1980〜2099年の範囲で実用上正確に扱える。
+    return Math.floor(
+        23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4)
+    );
+}
+
+function getJapaneseNationalHolidayBaseKeys(year) {
+    const holidays = new Set();
+    const add = (monthIndex, day) => holidays.add(makeDateKey(year, monthIndex, day));
+
+    // 元日
+    add(0, 1);
+
+    // 成人の日：1月第2月曜日
+    add(0, nthWeekdayOfMonth(year, 0, 1, 2));
+
+    // 建国記念の日
+    add(1, 11);
+
+    // 天皇誕生日：2020年以降は2月23日
+    if (year >= 2020) add(1, 23);
+
+    // 春分の日・秋分の日
+    if (year >= 1980 && year <= 2099) {
+        add(2, vernalEquinoxDay(year));
+    }
+
+    // 昭和の日
+    add(3, 29);
+
+    // 憲法記念日・みどりの日・こどもの日
+    add(4, 3);
+    add(4, 4);
+    add(4, 5);
+
+    // 海の日：7月第3月曜日
+    add(6, nthWeekdayOfMonth(year, 6, 1, 3));
+
+    // 山の日：8月11日
+    if (year >= 2016) add(7, 11);
+
+    // 敬老の日：9月第3月曜日
+    add(8, nthWeekdayOfMonth(year, 8, 1, 3));
+
+    if (year >= 1980 && year <= 2099) {
+        add(8, autumnalEquinoxDay(year));
+    }
+
+    // スポーツの日：10月第2月曜日
+    add(9, nthWeekdayOfMonth(year, 9, 1, 2));
+
+    // 文化の日・勤労感謝の日
+    add(10, 3);
+    add(10, 23);
+
+    // 2020年は東京オリンピック特例で海の日・スポーツの日・山の日が移動。
+    // 2021年も同様の特例。
+    if (year === 2020) {
+        holidays.delete(makeDateKey(year, 6, nthWeekdayOfMonth(year, 6, 1, 3)));
+        holidays.delete(makeDateKey(year, 9, nthWeekdayOfMonth(year, 9, 1, 2)));
+        holidays.delete(makeDateKey(year, 7, 11));
+        add(6, 23); // 海の日
+        add(6, 24); // スポーツの日
+        add(7, 10); // 山の日
+    }
+
+    if (year === 2021) {
+        holidays.delete(makeDateKey(year, 6, nthWeekdayOfMonth(year, 6, 1, 3)));
+        holidays.delete(makeDateKey(year, 9, nthWeekdayOfMonth(year, 9, 1, 2)));
+        holidays.delete(makeDateKey(year, 7, 11));
+        add(6, 22); // 海の日
+        add(6, 23); // スポーツの日
+        add(7, 8);  // 山の日
+    }
+
+    return holidays;
+}
+
+function getJapaneseNationalHolidays(year) {
+    const holidays = getJapaneseNationalHolidayBaseKeys(year);
+
+    // 国民の休日：祝日に挟まれた平日を休日として扱う。
+    // 例：敬老の日と秋分の日に挟まれる日など。
+    const daysInYear = (new Date(year + 1, 0, 1) - new Date(year, 0, 1)) / 86400000;
+    for (let i = 1; i < daysInYear - 1; i++) {
+        const d = new Date(year, 0, 1 + i);
+        if (d.getDay() === 0 || d.getDay() === 6) continue;
+        const prev = new Date(d);
+        prev.setDate(prev.getDate() - 1);
+        const next = new Date(d);
+        next.setDate(next.getDate() + 1);
+        if (holidays.has(dateToLocalString(prev)) && holidays.has(dateToLocalString(next))) {
+            holidays.add(dateToLocalString(d));
+        }
+    }
+
+    // 振替休日：祝日が日曜日に当たった場合、次の休日でない平日へ振り替える。
+    // 国民の休日も含めて順次埋める。
+    const originalHolidayKeys = [...holidays];
+    for (const key of originalHolidayKeys) {
+        const d = new Date(`${key}T00:00:00`);
+        if (d.getDay() !== 0) continue;
+
+        const substitute = new Date(d);
+        substitute.setDate(substitute.getDate() + 1);
+        while (
+            substitute.getDay() === 0 ||
+            substitute.getDay() === 6 ||
+            holidays.has(dateToLocalString(substitute))
+        ) {
+            substitute.setDate(substitute.getDate() + 1);
+        }
+        holidays.add(dateToLocalString(substitute));
+    }
+
+    return holidays;
+}
+
+function getActualPayday(year, monthIndex, paydayDay) {
+    const requestedDay = Math.min(31, Math.max(1, Number(paydayDay || 25)));
+    // 31日など、対象月に存在しない日が設定されても月をまたがないようにする。
+    const day = Math.min(requestedDay, lastDayOfMonth(year, monthIndex));
+    const target = new Date(year, monthIndex, day);
+    const holidays = getJapaneseNationalHolidays(year);
+
+    while (
+        target.getDay() === 0 ||
+        target.getDay() === 6 ||
+        holidays.has(dateToLocalString(target))
+    ) {
+        target.setDate(target.getDate() - 1);
+    }
+
+    return target;
+}
+
 function getCycleRange() {
-    const today = new Date();
+    const today = getExcelTodayDate();
     const payday = Math.min(31, Math.max(1, Number(state.settings.payday_day || 25)));
     const year = today.getFullYear();
     const month = today.getMonth();
 
+    const thisMonthPayday = getActualPayday(year, month, payday);
     let start;
-    if (today.getDate() >= payday) {
-        start = new Date(year, month, payday);
+
+    if (today >= thisMonthPayday) {
+        start = thisMonthPayday;
     } else {
-        start = new Date(year, month - 1, payday);
+        start = getActualPayday(year, month - 1, payday);
     }
 
-    // 「次の給料日の前日」を、月末をまたいでも正しく求める。
-    const nextPayday = new Date(start.getFullYear(), start.getMonth() + 1, payday);
+    const nextPayday = getActualPayday(start.getFullYear(), start.getMonth() + 1, payday);
     const end = new Date(nextPayday);
     end.setDate(end.getDate() - 1);
-    return { start, end };
+
+    return { start, end, nextPayday };
 }
 
 function dateToLocalString(date) {
@@ -275,14 +451,14 @@ function calculateHome() {
     const expenses = cycle.filter(t => t.transaction_type === "expense");
     const incomes = cycle.filter(t => t.transaction_type === "income");
 
-    const { start, end } = getCycleRange();
+    const { start, end, nextPayday } = getCycleRange();
     const excelToday = getExcelTodayDate();
 
     // ========================================================
     // Excelの計算式をそのまま再現する
     // ========================================================
-    // K4 = 現在の給料日
-    // K6 = 次の給料日
+    // K4 = 現在の「実際の」給料日（土日祝なら前営業日）
+    // K6 = 次の「実際の」給料日
     //
     // G8 = 総残高
     // G6 = 貯金
@@ -341,12 +517,10 @@ function calculateHome() {
     const remainingDays = Math.max(1, totalCycleDays - elapsedDays + 1);
     const dailyGuideline = remaining / remainingDays;
 
-    const payday = Math.min(31, Math.max(1, Number(state.settings.payday_day || 25)));
-    let nextPayday = new Date(excelToday.getFullYear(), excelToday.getMonth(), payday);
-    if (nextPayday <= excelToday) {
-        nextPayday = new Date(excelToday.getFullYear(), excelToday.getMonth() + 1, payday);
-    }
-    const daysUntil = Math.max(0, Math.ceil((nextPayday - excelToday) / 86400000));
+    // getCycleRange() で求めた「次の実際の給料日」をそのまま使う。
+    // 今月25日より前の日なら今月の前倒し日、25日以降なら翌月の前倒し日になる。
+    // 今日が次回給料日の当日なら「0日」と表示する。
+    const daysUntil = Math.max(0, Math.round((nextPayday - excelToday) / 86400000));
 
     return {
         cycle,
@@ -368,7 +542,8 @@ function calculateHome() {
         end,
         totalCycleDays,
         elapsedDays,
-        daysUntil
+        daysUntil,
+        nextPayday
     };
 }
 function renderAll() {
@@ -385,7 +560,15 @@ function renderHome() {
     const endText = `${d.end.getMonth() + 1}/${d.end.getDate()}`;
 
     $("cycleLabel").textContent = `${startText}〜${endText}`;
-    $("paydayLabel").textContent = `給料日：${state.settings.payday_day}日`;
+    const paydayDay = Math.min(31, Math.max(1, Number(state.settings.payday_day || 25)));
+    const nextActualPayday = d.nextPayday || getActualPayday(d.end.getFullYear(), d.end.getMonth() + 1, paydayDay);
+    const nominalLabel = `毎月${paydayDay}日`;
+    const actualLabel = `${nextActualPayday.getMonth() + 1}/${nextActualPayday.getDate()}`;
+    const nominalDate = new Date(nextActualPayday.getFullYear(), nextActualPayday.getMonth(), Math.min(paydayDay, lastDayOfMonth(nextActualPayday.getFullYear(), nextActualPayday.getMonth())));
+    const wasForwarded = nominalDate.getTime() !== nextActualPayday.getTime();
+    $("paydayLabel").textContent = wasForwarded
+        ? `給料日：${nominalLabel} → ${actualLabel}（前倒し）`
+        : `給料日：${nominalLabel}（次回 ${actualLabel}）`;
 
     $("totalBalance").textContent = yen(d.totalBalance);
 
@@ -741,7 +924,19 @@ function renderSpecialExpenses() {
         return;
     }
 
-    list.innerHTML = state.specialExpenses.map(item => {
+    const sortedSpecialExpenses = [...state.specialExpenses].sort((a, b) => {
+        // 予定日が新しい順。予定日なしは最後。
+        if (!a.planned_date && !b.planned_date) {
+            return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+        }
+        if (!a.planned_date) return 1;
+        if (!b.planned_date) return -1;
+        const dateCompare = String(b.planned_date).localeCompare(String(a.planned_date));
+        if (dateCompare !== 0) return dateCompare;
+        return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+    });
+
+    list.innerHTML = sortedSpecialExpenses.map(item => {
         const planned = Number(item.planned_amount || 0);
         const actual = Number(item.actual_amount || 0);
         const remaining = planned - actual;
