@@ -959,6 +959,7 @@ function renderSpecialExpenses() {
                 ${item.memo ? `<div class="item-sub">${escapeHtml(item.memo)}</div>` : ""}
                 <div class="special-actions">
                     <button class="tiny-button" data-edit-special="${item.id}">編集</button>
+                    <button class="tiny-button" data-copy-special="${item.id}">コピー</button>
                     <button class="tiny-button" data-delete-special="${item.id}">削除</button>
                 </div>
             </div>`;
@@ -974,6 +975,24 @@ function openSpecialModal(id = null) {
     $("specialPlanned").value = item?.planned_amount ?? "";
     $("specialActual").value = item?.actual_amount ?? 0;
     $("specialMemo").value = item?.memo || "";
+    $("specialModal").classList.remove("hidden");
+}
+
+// 特別費をコピーして新規追加する。元データは変更せず、コピー先は新しいIDでINSERTする。
+function copySpecialExpense(id) {
+    const item = state.specialExpenses.find(x => x.id === id);
+    if (!item) {
+        alert("コピーする特別費が見つかりませんでした。");
+        return;
+    }
+
+    state.editingSpecialId = null;
+    $("specialModalTitle").textContent = "特別費をコピーして追加";
+    $("specialDate").value = item.planned_date || todayString();
+    $("specialName").value = item.name || "";
+    $("specialPlanned").value = item.planned_amount ?? "";
+    $("specialActual").value = item.actual_amount ?? 0;
+    $("specialMemo").value = item.memo || "";
     $("specialModal").classList.remove("hidden");
 }
 
@@ -1421,11 +1440,13 @@ document.addEventListener("click", (event) => {
     const editTransaction = event.target.closest("[data-edit-transaction]");
     const deleteTransactionButton = event.target.closest("[data-delete-transaction]");
     const editSpecial = event.target.closest("[data-edit-special]");
+    const copySpecial = event.target.closest("[data-copy-special]");
     const deleteSpecial = event.target.closest("[data-delete-special]");
 
     if (editTransaction) startEditTransaction(editTransaction.dataset.editTransaction);
     if (deleteTransactionButton) deleteTransaction(deleteTransactionButton.dataset.deleteTransaction);
     if (editSpecial) openSpecialModal(editSpecial.dataset.editSpecial);
+    if (copySpecial) copySpecialExpense(copySpecial.dataset.copySpecial);
     if (deleteSpecial) deleteSpecialExpense(deleteSpecial.dataset.deleteSpecial);
 });
 
