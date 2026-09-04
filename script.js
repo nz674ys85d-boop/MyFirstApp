@@ -484,10 +484,32 @@ function getCategoriesForTransactionType(transactionType) {
         "遊技代ユウギダイ"
     ]);
 
-    return state.categories.filter(c =>
-        c.is_active !== false &&
-        !hiddenLegacyCategoryNames.has(c.type) &&
-        (c.transaction_type || "expense") === transactionType
+    // categories テーブルには、過去の表記を統合した際に
+    // 「同じ種類(type)だが、元の name が異なる」複数行が残っています。
+    // 履歴の category_id はそのまま保持する必要があるためDB上の行は削除せず、
+    // 新規入力画面では type ごとに代表1件だけを表示します。
+    const uniqueByType = new Map();
+
+    for (const c of state.categories) {
+        if (
+            c.is_active === false ||
+            hiddenLegacyCategoryNames.has(String(c.type || "").trim()) ||
+            (c.transaction_type || "expense") !== transactionType
+        ) {
+            continue;
+        }
+
+        const typeLabel = String(c.type || "").trim();
+        if (!typeLabel) continue;
+
+        // 同じ type が複数行あっても、入力用プルダウンには1回だけ表示する。
+        if (!uniqueByType.has(typeLabel)) {
+            uniqueByType.set(typeLabel, c);
+        }
+    }
+
+    return [...uniqueByType.values()].sort((a, b) =>
+        String(a.type || "").localeCompare(String(b.type || ""), "ja")
     );
 }
 
