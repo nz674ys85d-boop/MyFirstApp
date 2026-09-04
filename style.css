@@ -170,3 +170,24 @@ main{padding:16px 16px 92px}.view{animation:fade .15s ease}@keyframes fade{from{
     word-break: break-all;
     margin-top: 8px;
 }
+
+
+/* STEP13：データ確認 */
+.data-integrity-message {
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.data-integrity-message.ok {
+    color: #333;
+}
+
+.data-integrity-message.error {
+    color: #b00020;
+}
+
+.data-integrity-message .integrity-list {
+    margin: 6px 0 0;
+    padding-left: 18px;
+}
