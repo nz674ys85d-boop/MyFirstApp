@@ -1559,4 +1559,11 @@ if (restoreBackupButton) {
     restoreBackupButton.addEventListener("click", restoreBackup);
 }
 
+// ============================================================
+// STEP15：正式な種類ルール
+// 「種類」は categories.type（Excel D列「種別」）を表示する。
+// is_active=false の過去専用カテゴリは入力候補から除外する。
+// ============================================================
+const CATEGORY_RULE_VERSION = 15;
+
 checkLogin();
