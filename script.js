@@ -21,7 +21,8 @@ const state = {
     specialExpenses: [],
     transactionType: "expense",
     editingTransactionId: null,
-    editingSpecialId: null
+    editingSpecialId: null,
+    specialDisplayMode: "cycle"
 };
 
 const $ = (id) => document.getElementById(id);
@@ -201,6 +202,11 @@ function getCategoryType(t) {
 
 // ============================================================
 // 日本の祝日・振替休日を考慮した「実際の給料日」計算
+//
+// 設定上の給料日（例：毎月25日）が土日祝日に当たった場合、
+// その日より前の「平日（祝日を除く月〜金）」へ前倒しする。
+// 祝日は外部APIに依存せず、このアプリ内で自動計算するため、
+// GitHub Pagesだけでも将来の日付を継続して判定できる。
 // ============================================================
 
 function pad2(value) {
@@ -212,6 +218,7 @@ function makeDateKey(year, monthIndex, day) {
 }
 
 function nthWeekdayOfMonth(year, monthIndex, weekday, nth) {
+    // weekday: 0=日曜 ... 6=土曜
     const first = new Date(year, monthIndex, 1);
     const offset = (weekday - first.getDay() + 7) % 7;
     return 1 + offset + (nth - 1) * 7;
@@ -222,12 +229,16 @@ function lastDayOfMonth(year, monthIndex) {
 }
 
 function vernalEquinoxDay(year) {
+    // 日本の春分日は国立天文台の近似式に基づく計算。
+    // 1980〜2099年の範囲で実用上正確に扱える。
     return Math.floor(
         20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4)
     );
 }
 
 function autumnalEquinoxDay(year) {
+    // 日本の秋分日の近似式。
+    // 1980〜2099年の範囲で実用上正確に扱える。
     return Math.floor(
         23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4)
     );
@@ -237,48 +248,69 @@ function getJapaneseNationalHolidayBaseKeys(year) {
     const holidays = new Set();
     const add = (monthIndex, day) => holidays.add(makeDateKey(year, monthIndex, day));
 
+    // 元日
     add(0, 1);
+
+    // 成人の日：1月第2月曜日
     add(0, nthWeekdayOfMonth(year, 0, 1, 2));
+
+    // 建国記念の日
     add(1, 11);
+
+    // 天皇誕生日：2020年以降は2月23日
     if (year >= 2020) add(1, 23);
 
+    // 春分の日・秋分の日
     if (year >= 1980 && year <= 2099) {
         add(2, vernalEquinoxDay(year));
     }
 
+    // 昭和の日
     add(3, 29);
+
+    // 憲法記念日・みどりの日・こどもの日
     add(4, 3);
     add(4, 4);
     add(4, 5);
 
+    // 海の日：7月第3月曜日
     add(6, nthWeekdayOfMonth(year, 6, 1, 3));
+
+    // 山の日：8月11日
     if (year >= 2016) add(7, 11);
+
+    // 敬老の日：9月第3月曜日
     add(8, nthWeekdayOfMonth(year, 8, 1, 3));
 
     if (year >= 1980 && year <= 2099) {
         add(8, autumnalEquinoxDay(year));
     }
 
+    // スポーツの日：10月第2月曜日
     add(9, nthWeekdayOfMonth(year, 9, 1, 2));
+
+    // 文化の日・勤労感謝の日
     add(10, 3);
     add(10, 23);
 
+    // 2020年は東京オリンピック特例で海の日・スポーツの日・山の日が移動。
+    // 2021年も同様の特例。
     if (year === 2020) {
         holidays.delete(makeDateKey(year, 6, nthWeekdayOfMonth(year, 6, 1, 3)));
         holidays.delete(makeDateKey(year, 9, nthWeekdayOfMonth(year, 9, 1, 2)));
         holidays.delete(makeDateKey(year, 7, 11));
-        add(6, 23);
-        add(6, 24);
-        add(7, 10);
+        add(6, 23); // 海の日
+        add(6, 24); // スポーツの日
+        add(7, 10); // 山の日
     }
 
     if (year === 2021) {
         holidays.delete(makeDateKey(year, 6, nthWeekdayOfMonth(year, 6, 1, 3)));
         holidays.delete(makeDateKey(year, 9, nthWeekdayOfMonth(year, 9, 1, 2)));
         holidays.delete(makeDateKey(year, 7, 11));
-        add(6, 22);
-        add(6, 23);
-        add(7, 8);
+        add(6, 22); // 海の日
+        add(6, 23); // スポーツの日
+        add(7, 8);  // 山の日
     }
 
     return holidays;
@@ -287,6 +319,8 @@ function getJapaneseNationalHolidayBaseKeys(year) {
 function getJapaneseNationalHolidays(year) {
     const holidays = getJapaneseNationalHolidayBaseKeys(year);
 
+    // 国民の休日：祝日に挟まれた平日を休日として扱う。
+    // 例：敬老の日と秋分の日に挟まれる日など。
     const daysInYear = (new Date(year + 1, 0, 1) - new Date(year, 0, 1)) / 86400000;
     for (let i = 1; i < daysInYear - 1; i++) {
         const d = new Date(year, 0, 1 + i);
@@ -300,6 +334,8 @@ function getJapaneseNationalHolidays(year) {
         }
     }
 
+    // 振替休日：祝日が日曜日に当たった場合、次の休日でない平日へ振り替える。
+    // 国民の休日も含めて順次埋める。
     const originalHolidayKeys = [...holidays];
     for (const key of originalHolidayKeys) {
         const d = new Date(`${key}T00:00:00`);
@@ -322,6 +358,7 @@ function getJapaneseNationalHolidays(year) {
 
 function getActualPayday(year, monthIndex, paydayDay) {
     const requestedDay = Math.min(31, Math.max(1, Number(paydayDay || 25)));
+    // 31日など、対象月に存在しない日が設定されても月をまたがないようにする。
     const day = Math.min(requestedDay, lastDayOfMonth(year, monthIndex));
     const target = new Date(year, monthIndex, day);
     const holidays = getJapaneseNationalHolidays(year);
@@ -397,6 +434,8 @@ function getSpecialTopUps() {
     }, 0);
 }
 
+// Excelの「今月生活費」計算で、今後使う予定として確保されている
+// 特別費の残額（予定額－実績額のうちプラスのもの）を合計する。
 function getSpecialRemainingReserve() {
     const { start, end } = getCycleRange();
     return state.specialExpenses.reduce((sum, item) => {
@@ -409,6 +448,8 @@ function getSpecialRemainingReserve() {
 }
 
 function getExcelTodayDate() {
+    // ExcelのTODAY()と同じ「今日の日付」だけを使う。
+    // 時刻・タイムゾーンによるズレを計算に持ち込まない。
     return new Date(`${todayString()}T00:00:00`);
 }
 
@@ -424,12 +465,41 @@ function calculateHome() {
     const { start, end, nextPayday } = getCycleRange();
     const excelToday = getExcelTodayDate();
 
+    // ========================================================
+    // Excelの計算式をそのまま再現する
+    // ========================================================
+    // K4 = 現在の「実際の」給料日（土日祝なら前営業日）
+    // K6 = 次の「実際の」給料日
+    //
+    // G8 = 総残高
+    // G6 = 貯金
+    // G4（今月生活費）
+    // = G8-G6-SUMIFS(
+    //     特別費の残高,
+    //     特別費の残高,">0",
+    //     特別費の日付,">="&K4,
+    //     特別費の日付,"<"&K6
+    //   )
+    //
+    // H4（生活費進捗）
+    // = SUMIFS(生活費支出,日付,">="&K4,日付,"<="&TODAY())
+    //   /(G4+SUMIFS(同じ生活費支出))
+    //
+    // I4（今月生活費予測）
+    // = SUMIFS(生活費支出,日付,">="&K4,日付,"<="&TODAY())
+    //   /(TODAY()-K4+1)*(K6-K4)
+    // ========================================================
+
     const totalBalance = state.accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
     const savings = Number(state.settings.savings_balance || 0);
     const specialReserve = getSpecialRemainingReserve();
 
+    // Excel G4「今月生活費」
+    // Excel式に合わせ、Math.max(0, ...) では丸めない。
     const remaining = totalBalance - savings - specialReserve;
 
+    // Excel H4 / I4 のSUMIFS相当。
+    // 対象は「現在の給料日(K4)以上」かつ「TODAY()以下」の生活費支出のみ。
     const livingThroughToday = state.transactions.filter(t => {
         if (t.transaction_type !== "expense") return false;
         if (getCategoryType(t) !== "生活費") return false;
@@ -445,15 +515,22 @@ function calculateHome() {
     const totalCycleDays = Math.max(1, diffDaysInclusive(start, end));
     const elapsedDays = Math.max(1, diffDaysInclusive(start, excelToday));
 
+    // Excel H4そのもの。
     const progress = (remaining + livingSpentThroughToday) !== 0
         ? livingSpentThroughToday / (remaining + livingSpentThroughToday)
         : 0;
 
+    // Excel I4そのもの。
     const forecast = livingSpentThroughToday / elapsedDays * totalCycleDays;
+
+    // 画面上の補助表示もExcel計算に合わせる。
     const averageDaily = livingSpentThroughToday / elapsedDays;
     const remainingDays = Math.max(1, totalCycleDays - elapsedDays + 1);
     const dailyGuideline = remaining / remainingDays;
 
+    // getCycleRange() で求めた「次の実際の給料日」をそのまま使う。
+    // 今月25日より前の日なら今月の前倒し日、25日以降なら翌月の前倒し日になる。
+    // 今日が次回給料日の当日なら「0日」と表示する。
     const daysUntil = Math.max(0, Math.round((nextPayday - excelToday) / 86400000));
 
     return {
@@ -480,7 +557,6 @@ function calculateHome() {
         nextPayday
     };
 }
-
 function renderAll() {
     renderHome();
     renderHistory();
@@ -523,6 +599,7 @@ function renderHome() {
     $("dailyGuideline").textContent = yen(Math.round(d.dailyGuideline));
     $("averageDaily").textContent = yen(Math.round(d.averageDaily));
     $("livingForecast").textContent = yen(Math.round(d.forecast));
+    // H4の比率をそのまま表示。ただしCSSの幅としては0〜100%に収める。
     const progressWidth = Math.max(0, Math.min(100, d.progress * 100));
     $("livingProgressBar").style.width = `${progressWidth}%`;
     const progressLabel = $("livingProgressLabel");
@@ -601,6 +678,10 @@ function getCategoriesForTransactionType(transactionType) {
         "遊技代ユウギダイ"
     ]);
 
+    // categories テーブルには、過去の表記を統合した際に
+    // 「同じ種類(type)だが、元の name が異なる」複数行が残っています。
+    // 履歴の category_id はそのまま保持する必要があるためDB上の行は削除せず、
+    // 新規入力画面では type ごとに代表1件だけを表示します。
     const uniqueByType = new Map();
 
     for (const c of state.categories) {
@@ -615,6 +696,7 @@ function getCategoriesForTransactionType(transactionType) {
         const typeLabel = String(c.type || "").trim();
         if (!typeLabel) continue;
 
+        // 同じ type が複数行あっても、入力用プルダウンには1回だけ表示する。
         if (!uniqueByType.has(typeLabel)) {
             uniqueByType.set(typeLabel, c);
         }
@@ -636,6 +718,9 @@ function populateTransactionForm() {
     const currentType = state.transactionType;
     const categories = getCategoriesForTransactionType(currentType);
 
+    // iPhone / iOS Safari のネイティブ選択UIでは、CSSのダークモード継承により
+    // option の文字色だけが暗くなって「文字が消えたように見える」ことがある。
+    // innerHTMLではなく Option オブジェクトを使い、表示文字列を明示的に設定する。
     const categorySelect = $("transactionCategory");
     categorySelect.innerHTML = "";
     categorySelect.style.color = "#333";
@@ -727,6 +812,11 @@ async function saveTransaction() {
             account_id: accountId
         };
 
+        // -----------------------------------------------------
+        // DBへの保存だけを「取引処理」として扱う。
+        // 保存後の画面再読込でエラーが起きても、
+        // 「保存に失敗した」と誤表示しない。
+        // -----------------------------------------------------
         if (state.editingTransactionId) {
             const { error } = await mySupabase
                 .from("transactions")
@@ -746,6 +836,11 @@ async function saveTransaction() {
             if (error) throw error;
         }
 
+        // -----------------------------------------------------
+        // DB保存は成功。
+        // ここからは画面データを最新状態へ同期する。
+        // accounts.balance はSTEP8のDBトリガーが自動更新する。
+        // -----------------------------------------------------
         try {
             await Promise.all([
                 loadTransactions(),
@@ -753,6 +848,8 @@ async function saveTransaction() {
             ]);
         } catch (refreshError) {
             console.error("保存後の画面データ更新エラー:", refreshError);
+            // 保存自体は成功しているので、
+            // 「取引を実行できませんでした」は表示しない。
         }
 
         resetTransactionForm();
@@ -771,6 +868,11 @@ async function deleteTransaction(id) {
     if (!confirm("この取引を削除しますか？")) return;
 
     try {
+        // -----------------------------------------------------
+        // DBから削除。
+        // accounts.balance はSTEP8のDELETEトリガーが
+        // 自動的に元へ戻す。
+        // -----------------------------------------------------
         const { error } = await mySupabase
             .from("transactions")
             .delete()
@@ -779,6 +881,11 @@ async function deleteTransaction(id) {
 
         if (error) throw error;
 
+        // -----------------------------------------------------
+        // 削除成功後、履歴と口座残高を同時に最新化。
+        // 以前はloadAccounts()を呼んでいなかったため、
+        // 財布残高が画面上だけ古いままになる問題があった。
+        // -----------------------------------------------------
         try {
             await Promise.all([
                 loadTransactions(),
@@ -786,6 +893,8 @@ async function deleteTransaction(id) {
             ]);
         } catch (refreshError) {
             console.error("削除後の画面データ更新エラー:", refreshError);
+            // 削除自体は成功しているので、
+            // 削除失敗のメッセージは表示しない。
         }
 
         renderAll();
@@ -820,13 +929,25 @@ function startEditTransaction(id) {
 
 function renderSpecialExpenses() {
     const list = $("specialList");
+    const filter = $("specialDisplayMode");
+    const mode = filter?.value || state.specialDisplayMode || "cycle";
+    state.specialDisplayMode = mode;
 
     if (!state.specialExpenses.length) {
         list.innerHTML = `<p class="empty-message">特別費はまだありません</p>`;
         return;
     }
 
-    const sortedSpecialExpenses = [...state.specialExpenses].sort((a, b) => {
+    const { start, end } = getCycleRange();
+    const filteredSpecialExpenses = state.specialExpenses.filter(item => {
+        if (mode === "all") return true;
+        if (!item.planned_date) return false;
+        const d = new Date(`${item.planned_date}T00:00:00`);
+        return d >= start && d <= end;
+    });
+
+    const sortedSpecialExpenses = [...filteredSpecialExpenses].sort((a, b) => {
+        // 予定日が新しい順。予定日なしは最後。
         if (!a.planned_date && !b.planned_date) {
             return String(b.created_at || "").localeCompare(String(a.created_at || ""));
         }
@@ -836,6 +957,13 @@ function renderSpecialExpenses() {
         if (dateCompare !== 0) return dateCompare;
         return String(b.created_at || "").localeCompare(String(a.created_at || ""));
     });
+
+    if (!sortedSpecialExpenses.length) {
+        const startText = `${start.getMonth() + 1}/${start.getDate()}`;
+        const endText = `${end.getMonth() + 1}/${end.getDate()}`;
+        list.innerHTML = `<p class="empty-message">${escapeHtml(startText)}〜${escapeHtml(endText)}の特別費はありません</p>`;
+        return;
+    }
 
     list.innerHTML = sortedSpecialExpenses.map(item => {
         const planned = Number(item.planned_amount || 0);
@@ -879,6 +1007,7 @@ function openSpecialModal(id = null) {
     $("specialModal").classList.remove("hidden");
 }
 
+// 特別費をコピーして新規追加する。元データは変更せず、コピー先は新しいIDでINSERTする。
 function copySpecialExpense(id) {
     const item = state.specialExpenses.find(x => x.id === id);
     if (!item) {
@@ -1005,6 +1134,8 @@ function getUniqueCategoryTypes() {
         }
         const item = map.get(typeLabel);
         item.categoryIds.push(c.id);
+        // If any category in this type is used for income only, preserve that
+        // information; otherwise default to expense.
         if (c.transaction_type === "income") item.transaction_type = "income";
     }
     return [...map.values()].sort((a,b) => a.type.localeCompare(b.type, "ja"));
@@ -1330,6 +1461,10 @@ $("historySearch").addEventListener("input", renderHistory);
 $("historyTypeFilter").addEventListener("change", renderHistory);
 $("saveSettingsButton").addEventListener("click", saveSettings);
 $("newSpecialButton").addEventListener("click", () => openSpecialModal());
+$("specialDisplayMode").addEventListener("change", (event) => {
+    state.specialDisplayMode = event.target.value;
+    renderSpecialExpenses();
+});
 $("closeSpecialModalButton").addEventListener("click", closeSpecialModal);
 $("saveSpecialButton").addEventListener("click", saveSpecialExpense);
 document.querySelector(".modal-backdrop").addEventListener("click", closeSpecialModal);
@@ -1348,6 +1483,7 @@ document.addEventListener("click", (event) => {
     if (deleteSpecial) deleteSpecialExpense(deleteSpecial.dataset.deleteSpecial);
 });
 
+// 設定画面：口座・種類
 $("newAccountButton").addEventListener("click", () => openAccountModal());
 $("closeAccountModalButton").addEventListener("click", closeAccountModal);
 $("saveAccountButton").addEventListener("click", saveAccount);
@@ -1371,6 +1507,7 @@ document.addEventListener("click", (event) => {
     if (deleteCategoryButton) deleteCategoryType(deleteCategoryButton.dataset.deleteCategoryType);
 });
 
+
 async function checkLogin() {
     try {
         const { data, error } = await mySupabase.auth.getSession();
@@ -1391,6 +1528,8 @@ async function checkLogin() {
 
 // ============================================================
 // STEP12：データバックアップ
+// 現在読み込まれている自分のデータだけをJSONとして保存する。
+// Supabase上のデータは変更しない。
 // ============================================================
 
 function makeBackupFileName() {
@@ -1451,6 +1590,7 @@ if (exportBackupButton) {
 
 // ============================================================
 // STEP13：データ整合性チェック
+// DBを変更せず、現在読み込まれているデータの基本的な整合性だけを確認する。
 // ============================================================
 
 function checkDataIntegrity() {
@@ -1523,6 +1663,10 @@ if (checkDataIntegrityButton) {
 
 // ============================================================
 // STEP14：バックアップからの復元
+// ・JSONを読み込んで検証→プレビュー→明示確認→DBへ反映
+// ・現在ログインしているユーザー自身のデータだけを対象にする
+// ・バックアップ内のuser_idが現在ユーザーと一致しない場合は拒否
+// ・既存データを削除してから復元する方式は採用せず、upsertで反映する
 // ============================================================
 
 let selectedBackup = null;
@@ -1753,6 +1897,7 @@ async function restoreBackup() {
             if (error) throw error;
         }
 
+        // DBへの反映後、最新値を再取得して画面を同期。
         await Promise.all([
             loadSettings(),
             loadAccounts(),
@@ -1780,6 +1925,11 @@ if (restoreBackupButton) {
     restoreBackupButton.addEventListener("click", restoreBackup);
 }
 
+// ============================================================
+// STEP15：正式な種類ルール
+// 「種類」は categories.type（Excel D列「種別」）を表示する。
+// is_active=false の過去専用カテゴリは入力候補から除外する。
+// ============================================================
 const CATEGORY_RULE_VERSION = 15;
 
 checkLogin();
