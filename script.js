@@ -1222,4 +1222,77 @@ if (exportBackupButton) {
     exportBackupButton.addEventListener("click", exportBackup);
 }
 
+// ============================================================
+// STEP13：データ整合性チェック
+// DBを変更せず、現在読み込まれているデータの基本的な整合性だけを確認する。
+// ============================================================
+
+function checkDataIntegrity() {
+    const el = $("dataIntegrityMessage");
+    if (!el) return;
+
+    if (!state.user) {
+        el.className = "data-integrity-message error";
+        el.textContent = "ログイン後にデータを確認できます。";
+        return;
+    }
+
+    const errors = [];
+
+    const accountIds = new Set((state.accounts || []).map(a => a.id));
+    const categoryIds = new Set((state.categories || []).map(c => c.id));
+
+    (state.transactions || []).forEach(t => {
+        if (!t.id) errors.push("取引にIDがありません。");
+        if (!t.transaction_date) errors.push("日付がない取引があります。");
+        if (!t.name) errors.push("名目がない取引があります。");
+        if (!(Number(t.amount) > 0)) errors.push(`金額が不正な取引があります：${t.name || "名称なし"}`);
+        if (t.account_id && !accountIds.has(t.account_id)) {
+            errors.push(`存在しない口座を参照している取引があります：${t.name || "名称なし"}`);
+        }
+        if (t.category_id && !categoryIds.has(t.category_id)) {
+            errors.push(`存在しない種類を参照している取引があります：${t.name || "名称なし"}`);
+        }
+        if (!["income", "expense", "opening_balance"].includes(t.transaction_type)) {
+            errors.push(`取引種別が不正な取引があります：${t.name || "名称なし"}`);
+        }
+    });
+
+    (state.accounts || []).forEach(a => {
+        if (!a.id || !a.name) errors.push("口座にIDまたは名前がありません。");
+        if (Number(a.balance) < 0) errors.push(`口座残高がマイナスです：${a.name}`);
+    });
+
+    (state.categories || []).forEach(c => {
+        if (!c.id || !c.name) errors.push("種類にIDまたは名前がありません。");
+        if (!["expense", "income"].includes(c.transaction_type || "expense")) {
+            errors.push(`種類の取引区分が不正です：${c.name || "名称なし"}`);
+        }
+    });
+
+    (state.specialExpenses || []).forEach(s => {
+        if (!s.id || !s.name) errors.push("特別費にIDまたは名前がありません。");
+        if (Number(s.planned_amount) < 0 || Number(s.actual_amount) < 0) {
+            errors.push(`特別費の金額が不正です：${s.name || "名称なし"}`);
+        }
+    });
+
+    if (errors.length) {
+        el.className = "data-integrity-message error";
+        el.innerHTML = `<strong>確認結果：要確認</strong><ul class="integrity-list">${errors.slice(0, 10).map(e => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`;
+        if (errors.length > 10) {
+            el.innerHTML += `<div>ほか ${errors.length - 10} 件あります。</div>`;
+        }
+        return;
+    }
+
+    el.className = "data-integrity-message ok";
+    el.innerHTML = `<strong>確認結果：問題ありません</strong><br>現在読み込まれているデータの基本的な整合性を確認しました。`;
+}
+
+const checkDataIntegrityButton = $("checkDataIntegrityButton");
+if (checkDataIntegrityButton) {
+    checkDataIntegrityButton.addEventListener("click", checkDataIntegrity);
+}
+
 checkLogin();
