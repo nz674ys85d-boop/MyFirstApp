@@ -383,12 +383,41 @@ function renderHistoryItem(t) {
         </div>`;
 }
 
+function getCategoriesForTransactionType(transactionType) {
+    // categories.type は「生活費」「交通費」「趣味」などの
+    // 「カテゴリ名」であり、expense / income ではない。
+    //
+    // そのため、以前の
+    //   c.type === currentType
+    // という判定は誤り。
+    //
+    // 既存取引を使って、そのカテゴリが「支出」「収入」の
+    // どちらで使われているかを判定する。
+    const usedCategoryIds = new Set(
+        state.transactions
+            .filter(t => t.transaction_type === transactionType && t.category_id)
+            .map(t => t.category_id)
+    );
+
+    // 既存データに紐づくカテゴリがある場合は、その種類だけ表示。
+    if (usedCategoryIds.size > 0) {
+        return state.categories.filter(c => usedCategoryIds.has(c.id));
+    }
+
+    // まだその取引タイプのカテゴリ使用実績がない場合は、
+    // 登録済みカテゴリをすべて表示して新規登録できるようにする。
+    return state.categories;
+}
+
 function populateTransactionForm() {
     const currentType = state.transactionType;
-    const categories = state.categories.filter(c => c.type === currentType);
+    const categories = getCategoriesForTransactionType(currentType);
+
     $("transactionCategory").innerHTML =
-        `<option value="">選択してください</option>` +
-        categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+        categories.length
+            ? `<option value="">選択してください</option>` +
+              categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")
+            : `<option value="">種類が登録されていません</option>`;
 
     $("transactionAccount").innerHTML =
         `<option value="">口座を選択（任意）</option>` +
