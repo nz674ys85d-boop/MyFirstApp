@@ -502,15 +502,43 @@ function populateTransactionForm() {
     const currentType = state.transactionType;
     const categories = getCategoriesForTransactionType(currentType);
 
-    $("transactionCategory").innerHTML =
-        categories.length
-            ? `<option value="">選択してください</option>` +
-              categories.map(c => `<option value="${c.id}">${escapeHtml(c.type)}</option>`).join("")
-            : `<option value="">種類が登録されていません</option>`;
+    // iPhone / iOS Safari のネイティブ選択UIでは、CSSのダークモード継承により
+    // option の文字色だけが暗くなって「文字が消えたように見える」ことがある。
+    // innerHTMLではなく Option オブジェクトを使い、表示文字列を明示的に設定する。
+    const categorySelect = $("transactionCategory");
+    categorySelect.innerHTML = "";
+    categorySelect.style.color = "#333";
+    categorySelect.style.webkitTextFillColor = "#333";
+    categorySelect.style.colorScheme = "light";
 
-    $("transactionAccount").innerHTML =
-        `<option value="">口座を選択（任意）</option>` +
-        state.accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
+    const placeholder = new Option("選択してください", "", true, false);
+    categorySelect.appendChild(placeholder);
+
+    if (categories.length) {
+        categories.forEach(c => {
+            const label = String(c.type || "").trim();
+            const option = new Option(label || "（名称未設定）", String(c.id));
+            option.style.color = "#333";
+            option.style.backgroundColor = "#fff";
+            categorySelect.appendChild(option);
+        });
+    } else {
+        categorySelect.innerHTML = "";
+        categorySelect.appendChild(new Option("種類が登録されていません", ""));
+    }
+
+    const accountSelect = $("transactionAccount");
+    accountSelect.innerHTML = "";
+    accountSelect.style.color = "#333";
+    accountSelect.style.webkitTextFillColor = "#333";
+    accountSelect.style.colorScheme = "light";
+    accountSelect.appendChild(new Option("口座を選択（任意）", "", true, false));
+    state.accounts.forEach(a => {
+        const option = new Option(String(a.name || ""), String(a.id));
+        option.style.color = "#333";
+        option.style.backgroundColor = "#fff";
+        accountSelect.appendChild(option);
+    });
 
     if (!$("transactionDate").value) $("transactionDate").value = todayString();
 }
