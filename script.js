@@ -191,7 +191,7 @@ function getCategoryType(t) {
 
 function getCycleRange() {
     const today = new Date();
-    const payday = Number(state.settings.payday_day || 25);
+    const payday = Math.min(31, Math.max(1, Number(state.settings.payday_day || 25)));
     const year = today.getFullYear();
     const month = today.getMonth();
 
@@ -202,7 +202,10 @@ function getCycleRange() {
         start = new Date(year, month - 1, payday);
     }
 
-    const end = new Date(start.getFullYear(), start.getMonth() + 1, payday - 1);
+    // 「次の給料日の前日」を、月末をまたいでも正しく求める。
+    const nextPayday = new Date(start.getFullYear(), start.getMonth() + 1, payday);
+    const end = new Date(nextPayday);
+    end.setDate(end.getDate() - 1);
     return { start, end };
 }
 
@@ -244,6 +247,19 @@ function getSpecialTopUps() {
     }, 0);
 }
 
+// Excelの「今月生活費」計算で、今後使う予定として確保されている
+// 特別費の残額（予定額－実績額のうちプラスのもの）を合計する。
+function getSpecialRemainingReserve() {
+    const { start, end } = getCycleRange();
+    return state.specialExpenses.reduce((sum, item) => {
+        if (!item.planned_date) return sum;
+        const d = new Date(`${item.planned_date}T00:00:00`);
+        if (d < start || d > end) return sum;
+        const remaining = Number(item.planned_amount || 0) - Number(item.actual_amount || 0);
+        return sum + Math.max(0, remaining);
+    }, 0);
+}
+
 function calculateHome() {
     const cycle = getCycleTransactions();
     const expenses = cycle.filter(t => t.transaction_type === "expense");
@@ -251,42 +267,48 @@ function calculateHome() {
     const living = getLivingExpenses(cycle);
 
     const totalBalance = state.accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
-    const livingSpent = living.reduce((sum, t) => sum + Number(t.amount), 0);
-    const budget = Number(state.settings.living_budget || 0);
+    const livingSpent = living.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+    const savings = Number(state.settings.savings_balance || 0);
+    const specialReserve = getSpecialRemainingReserve();
     const specialTopUps = getSpecialTopUps();
+
+    // Excelの「今月生活費」
+    // = 現在の総残高 − 貯金 − 今月サイクル内の特別費残額（0より大きいもの）
+    // という考え方をそのまま再現する。
+    const remaining = Math.max(0, totalBalance - savings - specialReserve);
     const effectiveSpent = livingSpent + specialTopUps;
-    const remaining = Math.max(0, budget - effectiveSpent);
+    const impliedBudget = Math.max(0, remaining + effectiveSpent);
 
     const { start, end } = getCycleRange();
     const now = new Date();
-    const endDate = end;
-    const totalDays = Math.max(1, Math.round((endDate - start) / 86400000) + 1);
-    const elapsedDays = Math.min(totalDays, Math.max(1, Math.floor((now - start) / 86400000) + 1));
+    const totalDays = Math.max(1, Math.round((end - start) / 86400000) + 1);
+    const elapsedDays = Math.min(
+        totalDays,
+        Math.max(1, Math.floor((now - start) / 86400000) + 1)
+    );
     const remainingDays = Math.max(1, totalDays - elapsedDays + 1);
 
     const averageDaily = effectiveSpent / elapsedDays;
     const dailyGuideline = remaining / remainingDays;
     const forecast = averageDaily * totalDays;
-    const progress = budget > 0 ? Math.min(100, (effectiveSpent / budget) * 100) : 0;
+    const progress = impliedBudget > 0
+        ? Math.min(100, (effectiveSpent / impliedBudget) * 100)
+        : 0;
 
-    let nextPayday = new Date(end.getFullYear(), end.getMonth(), Number(state.settings.payday_day || 25));
-    if (nextPayday <= now) nextPayday = new Date(nextPayday.getFullYear(), nextPayday.getMonth() + 1, Number(state.settings.payday_day || 25));
+    const payday = Math.min(31, Math.max(1, Number(state.settings.payday_day || 25)));
+    let nextPayday = new Date(now.getFullYear(), now.getMonth(), payday);
+    if (nextPayday <= now) {
+        nextPayday = new Date(now.getFullYear(), now.getMonth() + 1, payday);
+    }
     const daysUntil = Math.max(0, Math.ceil((nextPayday - now) / 86400000));
 
     return {
         cycle, expenses, incomes, living,
-        totalBalance, livingSpent, budget, specialTopUps, remaining,
+        totalBalance, livingSpent, savings, specialReserve, specialTopUps,
+        impliedBudget, remaining,
         averageDaily, dailyGuideline, forecast, progress,
         start, end, daysUntil
     };
-}
-
-function renderAll() {
-    renderHome();
-    renderHistory();
-    renderSpecialExpenses();
-    renderAccountSettings();
-    renderCategorySettings();
 }
 
 function renderHome() {
@@ -311,21 +333,16 @@ function renderHome() {
 
     $("livingRemaining").textContent = yen(d.remaining);
     $("livingSpent").textContent = yen(d.livingSpent + d.specialTopUps);
-    $("livingBudget").textContent = yen(d.budget);
+    $("livingBudget").textContent = yen(d.impliedBudget);
     $("dailyGuideline").textContent = yen(Math.round(d.dailyGuideline));
     $("averageDaily").textContent = yen(Math.round(d.averageDaily));
     $("livingForecast").textContent = yen(Math.round(d.forecast));
     $("livingProgressBar").style.width = `${d.progress}%`;
 
-    if (d.budget > 0) {
-        $("budgetStatus").textContent = d.progress > 100 ? "予算オーバー" : "予算内";
-        $("budgetNote").textContent = d.specialTopUps > 0
-            ? `特別費の生活費補填 ¥${yen(d.specialTopUps)} を含めています。`
-            : "生活費の進捗は給料日サイクルで計算しています。";
-    } else {
-        $("budgetStatus").textContent = "未設定";
-        $("budgetNote").textContent = "生活費予算は設定画面から登録できます。";
-    }
+    $("budgetStatus").textContent = "自動計算";
+    $("budgetNote").textContent = d.specialReserve > 0
+        ? `特別費として確保中：¥${yen(d.specialReserve)}。貯金 ¥${yen(d.savings)} を除いて計算しています。`
+        : `貯金 ¥${yen(d.savings)} を除いて、現在残高から今月生活費を自動計算しています。`;
 
     const recent = state.transactions
         .filter(t => t.transaction_type === "expense")
