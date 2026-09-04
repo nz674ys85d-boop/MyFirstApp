@@ -260,57 +260,117 @@ function getSpecialRemainingReserve() {
     }, 0);
 }
 
+function getExcelTodayDate() {
+    // ExcelのTODAY()と同じ「今日の日付」だけを使う。
+    // 時刻・タイムゾーンによるズレを計算に持ち込まない。
+    return new Date(`${todayString()}T00:00:00`);
+}
+
+function diffDaysInclusive(start, end) {
+    return Math.round((end - start) / 86400000) + 1;
+}
+
 function calculateHome() {
     const cycle = getCycleTransactions();
     const expenses = cycle.filter(t => t.transaction_type === "expense");
     const incomes = cycle.filter(t => t.transaction_type === "income");
-    const living = getLivingExpenses(cycle);
-
-    const totalBalance = state.accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
-    const livingSpent = living.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-    const savings = Number(state.settings.savings_balance || 0);
-    const specialReserve = getSpecialRemainingReserve();
-    const specialTopUps = getSpecialTopUps();
-
-    // Excelの「今月生活費」
-    // = 現在の総残高 − 貯金 − 今月サイクル内の特別費残額（0より大きいもの）
-    // という考え方をそのまま再現する。
-    const remaining = Math.max(0, totalBalance - savings - specialReserve);
-    const effectiveSpent = livingSpent + specialTopUps;
-    const impliedBudget = Math.max(0, remaining + effectiveSpent);
 
     const { start, end } = getCycleRange();
-    const now = new Date();
-    const totalDays = Math.max(1, Math.round((end - start) / 86400000) + 1);
-    const elapsedDays = Math.min(
-        totalDays,
-        Math.max(1, Math.floor((now - start) / 86400000) + 1)
-    );
-    const remainingDays = Math.max(1, totalDays - elapsedDays + 1);
+    const excelToday = getExcelTodayDate();
 
-    const averageDaily = effectiveSpent / elapsedDays;
-    const dailyGuideline = remaining / remainingDays;
-    const forecast = averageDaily * totalDays;
-    const progress = impliedBudget > 0
-        ? Math.min(100, (effectiveSpent / impliedBudget) * 100)
+    // ========================================================
+    // Excelの計算式をそのまま再現する
+    // ========================================================
+    // K4 = 現在の給料日
+    // K6 = 次の給料日
+    //
+    // G8 = 総残高
+    // G6 = 貯金
+    // G4（今月生活費）
+    // = G8-G6-SUMIFS(
+    //     特別費の残高,
+    //     特別費の残高,">0",
+    //     特別費の日付,">="&K4,
+    //     特別費の日付,"<"&K6
+    //   )
+    //
+    // H4（生活費進捗）
+    // = SUMIFS(生活費支出,日付,">="&K4,日付,"<="&TODAY())
+    //   /(G4+SUMIFS(同じ生活費支出))
+    //
+    // I4（今月生活費予測）
+    // = SUMIFS(生活費支出,日付,">="&K4,日付,"<="&TODAY())
+    //   /(TODAY()-K4+1)*(K6-K4)
+    // ========================================================
+
+    const totalBalance = state.accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
+    const savings = Number(state.settings.savings_balance || 0);
+    const specialReserve = getSpecialRemainingReserve();
+
+    // Excel G4「今月生活費」
+    // Excel式に合わせ、Math.max(0, ...) では丸めない。
+    const remaining = totalBalance - savings - specialReserve;
+
+    // Excel H4 / I4 のSUMIFS相当。
+    // 対象は「現在の給料日(K4)以上」かつ「TODAY()以下」の生活費支出のみ。
+    const livingThroughToday = state.transactions.filter(t => {
+        if (t.transaction_type !== "expense") return false;
+        if (getCategoryType(t) !== "生活費") return false;
+        const d = transactionDate(t);
+        return d >= start && d <= excelToday;
+    });
+
+    const livingSpentThroughToday = livingThroughToday.reduce(
+        (sum, t) => sum + Number(t.amount || 0),
+        0
+    );
+
+    const totalCycleDays = Math.max(1, diffDaysInclusive(start, end));
+    const elapsedDays = Math.max(1, diffDaysInclusive(start, excelToday));
+
+    // Excel H4そのもの。
+    const progress = (remaining + livingSpentThroughToday) !== 0
+        ? livingSpentThroughToday / (remaining + livingSpentThroughToday)
         : 0;
 
+    // Excel I4そのもの。
+    const forecast = livingSpentThroughToday / elapsedDays * totalCycleDays;
+
+    // 画面上の補助表示もExcel計算に合わせる。
+    const averageDaily = livingSpentThroughToday / elapsedDays;
+    const remainingDays = Math.max(1, totalCycleDays - elapsedDays + 1);
+    const dailyGuideline = remaining / remainingDays;
+
     const payday = Math.min(31, Math.max(1, Number(state.settings.payday_day || 25)));
-    let nextPayday = new Date(now.getFullYear(), now.getMonth(), payday);
-    if (nextPayday <= now) {
-        nextPayday = new Date(now.getFullYear(), now.getMonth() + 1, payday);
+    let nextPayday = new Date(excelToday.getFullYear(), excelToday.getMonth(), payday);
+    if (nextPayday <= excelToday) {
+        nextPayday = new Date(excelToday.getFullYear(), excelToday.getMonth() + 1, payday);
     }
-    const daysUntil = Math.max(0, Math.ceil((nextPayday - now) / 86400000));
+    const daysUntil = Math.max(0, Math.ceil((nextPayday - excelToday) / 86400000));
 
     return {
-        cycle, expenses, incomes, living,
-        totalBalance, livingSpent, savings, specialReserve, specialTopUps,
-        impliedBudget, remaining,
-        averageDaily, dailyGuideline, forecast, progress,
-        start, end, daysUntil
+        cycle,
+        expenses,
+        incomes,
+        living: livingThroughToday,
+        totalBalance,
+        livingSpent: livingSpentThroughToday,
+        savings,
+        specialReserve,
+        specialTopUps: getSpecialTopUps(),
+        impliedBudget: remaining + livingSpentThroughToday,
+        remaining,
+        averageDaily,
+        dailyGuideline,
+        forecast,
+        progress,
+        start,
+        end,
+        totalCycleDays,
+        elapsedDays,
+        daysUntil
     };
 }
-
 function renderAll() {
     renderHome();
     renderHistory();
@@ -340,17 +400,23 @@ function renderHome() {
     $("daysUntilPayday").textContent = d.daysUntil;
 
     $("livingRemaining").textContent = yen(d.remaining);
-    $("livingSpent").textContent = yen(d.livingSpent + d.specialTopUps);
+    $("livingSpent").textContent = yen(d.livingSpent);
     $("livingBudget").textContent = yen(d.impliedBudget);
     $("dailyGuideline").textContent = yen(Math.round(d.dailyGuideline));
     $("averageDaily").textContent = yen(Math.round(d.averageDaily));
     $("livingForecast").textContent = yen(Math.round(d.forecast));
-    $("livingProgressBar").style.width = `${d.progress}%`;
+    // H4の比率をそのまま表示。ただしCSSの幅としては0〜100%に収める。
+    const progressWidth = Math.max(0, Math.min(100, d.progress * 100));
+    $("livingProgressBar").style.width = `${progressWidth}%`;
+    const progressLabel = $("livingProgressLabel");
+    if (progressLabel) {
+        progressLabel.textContent = `${(d.progress * 100).toFixed(2)}%`;
+    }
 
     $("budgetStatus").textContent = "自動計算";
     $("budgetNote").textContent = d.specialReserve > 0
-        ? `特別費として確保中：¥${yen(d.specialReserve)}。貯金 ¥${yen(d.savings)} を除いて計算しています。`
-        : `貯金 ¥${yen(d.savings)} を除いて、現在残高から今月生活費を自動計算しています。`;
+        ? `Excelと同じ計算式で、特別費残額 ¥${yen(d.specialReserve)} と貯金 ¥${yen(d.savings)} を除いて計算しています。`
+        : `Excelと同じ計算式で、貯金 ¥${yen(d.savings)} を除いて現在残高から計算しています。`;
 
     const recent = state.transactions
         .filter(t => t.transaction_type === "expense")
