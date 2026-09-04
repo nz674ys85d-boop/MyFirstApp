@@ -916,8 +916,7 @@ async function saveCategory() {
                     name,
                     type: group,
                     transaction_type: transactionType,
-                    is_active: true,
-                    updated_at: new Date().toISOString()
+                    is_active: true
                 })
                 .eq("id", id)
                 .eq("user_id", state.user.id);
@@ -978,8 +977,7 @@ async function deleteCategory(id) {
         const { error } = await mySupabase
             .from("categories")
             .update({
-                is_active: false,
-                updated_at: new Date().toISOString()
+                is_active: false
             })
             .eq("id", id)
             .eq("user_id", state.user.id);
