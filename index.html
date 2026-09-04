@@ -230,7 +230,7 @@
                     <div class="section-heading-row">
                         <div>
                             <h3>種類</h3>
-                            <p class="note">「分類」と「支出／収入」を設定できます。既存の履歴がある種類は削除できません。</p>
+                            <p class="note">Excelの「種別」にあたる項目です。ここで登録した種類が、取引入力の「種類」に表示されます。既存の履歴がある種類は削除できません。</p>
                         </div>
                         <button id="newCategoryButton" class="small-primary-button">＋追加</button>
                     </div>
@@ -285,11 +285,7 @@
             <label for="categoryName">種類名</label>
             <input type="text" id="categoryName" maxlength="50" placeholder="例：食費">
         </div>
-        <div class="form-group">
-            <label for="categoryGroup">分類</label>
-            <input type="text" id="categoryGroup" maxlength="50" placeholder="例：生活費">
-            <p class="note">分類はホームの生活費計算などで使います。後で整理できます。</p>
-        </div>
+        <input type="hidden" id="categoryGroup">
         <div class="form-group">
             <label for="categoryTransactionType">用途</label>
             <select id="categoryTransactionType">
