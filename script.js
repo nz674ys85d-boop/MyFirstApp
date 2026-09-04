@@ -1160,4 +1160,66 @@ async function checkLogin() {
     }
 }
 
+// ============================================================
+// STEP12：データバックアップ
+// 現在読み込まれている自分のデータだけをJSONとして保存する。
+// Supabase上のデータは変更しない。
+// ============================================================
+
+function makeBackupFileName() {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `MyFirstApp_backup_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.json`;
+}
+
+function downloadTextFile(fileName, text, mimeType) {
+    const blob = new Blob([text], { type: `${mimeType};charset=utf-8` });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function buildBackupData() {
+    return {
+        backup_version: 1,
+        app: "MyFirstApp",
+        exported_at: new Date().toISOString(),
+        user_id: state.user?.id ?? null,
+        settings: state.settings,
+        accounts: state.accounts,
+        categories: state.categories,
+        transactions: state.transactions,
+        special_expenses: state.specialExpenses
+    };
+}
+
+function exportBackup() {
+    const exportMessage = $("exportMessage");
+    if (!state.user) {
+        exportMessage.textContent = "ログイン後にバックアップできます。";
+        return;
+    }
+
+    try {
+        const backup = buildBackupData();
+        const json = JSON.stringify(backup, null, 2);
+        const fileName = makeBackupFileName();
+        downloadTextFile(fileName, json, "application/json");
+        exportMessage.textContent = "バックアップファイルを作成しました。";
+    } catch (error) {
+        console.error(error);
+        exportMessage.textContent = "バックアップを作成できませんでした。";
+    }
+}
+
+const exportBackupButton = $("exportBackupButton");
+if (exportBackupButton) {
+    exportBackupButton.addEventListener("click", exportBackup);
+}
+
 checkLogin();
