@@ -91,7 +91,8 @@ main{padding:16px 16px 92px}.view{animation:fade .15s ease}@keyframes fade{from{
 }
 
 .small-button {
-    background: #f1f1f1;
+    background: #333;
+    color: #fff;
 }
 
 .small-primary-button {
@@ -144,4 +145,28 @@ main{padding:16px 16px 92px}.view{animation:fade .15s ease}@keyframes fade{from{
     .settings-row-actions {
         flex-direction: column;
     }
+}
+
+
+/* STEP12：データ管理 */
+.data-management {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+}
+
+.data-management h3 {
+    margin: 0 0 7px;
+    font-size: 16px;
+}
+
+.data-management .primary-button {
+    margin-top: 12px;
+}
+
+.export-file-name {
+    font-size: 11px;
+    color: #888;
+    word-break: break-all;
+    margin-top: 8px;
 }
