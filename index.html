@@ -200,20 +200,41 @@
                     <h3>家計設定</h3>
                     <div class="form-group">
                         <label for="paydaySetting">給料日</label>
-                        <div class="suffix-input"><input type="number" id="paydaySetting" min="1" max="31"><span>日</span></div>
+                        <div class="suffix-input"><input type="number" id="paydaySetting" min="1" max="31" inputmode="numeric"><span>日</span></div>
                     </div>
                     <div class="form-group">
                         <label for="livingBudgetSetting">生活費予算</label>
                         <div class="suffix-input"><span>¥</span><input type="number" id="livingBudgetSetting" min="0" inputmode="numeric"></div>
+                        <p class="note">※最終的な「今月生活費」の計算ルールは後の工程でExcelに合わせて調整します。</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="savingsBalanceSetting">貯金として確保する金額</label>
+                        <div class="suffix-input"><span>¥</span><input type="number" id="savingsBalanceSetting" min="0" inputmode="numeric"></div>
                     </div>
                     <button id="saveSettingsButton" class="primary-button">設定を保存</button>
                     <p id="settingsMessage" class="success-message"></p>
                 </section>
 
                 <section class="settings-card">
-                    <h3>アカウント</h3>
+                    <div class="section-heading-row">
+                        <div>
+                            <h3>口座・残高</h3>
+                            <p class="note">口座を追加・編集できます。取引履歴がある口座は安全のため削除できません。</p>
+                        </div>
+                        <button id="newAccountButton" class="small-primary-button">＋追加</button>
+                    </div>
                     <div id="accountSettingsList"></div>
-                    <p class="note">口座残高は、現在のExcel残高を基準に設定済みです。</p>
+                </section>
+
+                <section class="settings-card">
+                    <div class="section-heading-row">
+                        <div>
+                            <h3>種類</h3>
+                            <p class="note">「分類」と「支出／収入」を設定できます。既存の履歴がある種類は削除できません。</p>
+                        </div>
+                        <button id="newCategoryButton" class="small-primary-button">＋追加</button>
+                    </div>
+                    <div id="categorySettingsList"></div>
                 </section>
             </section>
         </main>
@@ -227,6 +248,57 @@
             <button class="nav-button" data-view="settingsView"><span>⚙️</span><small>設定</small></button>
         </nav>
     </section>
+</div>
+
+<!-- 口座モーダル -->
+<div id="accountModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2 id="accountModalTitle">口座を追加</h2>
+            <button id="closeAccountModalButton" class="close-button">×</button>
+        </div>
+        <input type="hidden" id="accountId">
+        <div class="form-group">
+            <label for="accountName">口座名</label>
+            <input type="text" id="accountName" maxlength="50" placeholder="例：銀行">
+        </div>
+        <div class="form-group">
+            <label for="accountBalance">現在残高</label>
+            <div class="suffix-input"><span>¥</span><input type="number" id="accountBalance" min="0" inputmode="numeric"></div>
+            <p class="note">残高を手動で変更すると、現在の残高をその金額に合わせます。</p>
+        </div>
+        <button id="saveAccountButton" class="primary-button">保存する</button>
+    </div>
+</div>
+
+<!-- 種類モーダル -->
+<div id="categoryModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2 id="categoryModalTitle">種類を追加</h2>
+            <button id="closeCategoryModalButton" class="close-button">×</button>
+        </div>
+        <input type="hidden" id="categoryId">
+        <div class="form-group">
+            <label for="categoryName">種類名</label>
+            <input type="text" id="categoryName" maxlength="50" placeholder="例：食費">
+        </div>
+        <div class="form-group">
+            <label for="categoryGroup">分類</label>
+            <input type="text" id="categoryGroup" maxlength="50" placeholder="例：生活費">
+            <p class="note">分類はホームの生活費計算などで使います。後で整理できます。</p>
+        </div>
+        <div class="form-group">
+            <label for="categoryTransactionType">用途</label>
+            <select id="categoryTransactionType">
+                <option value="expense">支出</option>
+                <option value="income">収入</option>
+            </select>
+        </div>
+        <button id="saveCategoryButton" class="primary-button">保存する</button>
+    </div>
 </div>
 
 <!-- 特別費モーダル -->
