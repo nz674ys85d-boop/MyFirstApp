@@ -221,6 +221,17 @@
                         <p id="exportMessage" class="success-message"></p>
                         <div id="dataIntegrityMessage" class="data-integrity-message"></div>
                         <button id="checkDataIntegrityButton" class="secondary-button">データを確認</button>
+                        <div class="restore-section">
+                            <h4>バックアップから復元</h4>
+                            <p class="note">以前に保存したMyFirstAppのJSONバックアップを読み込みます。復元前に現在のデータを必ずバックアップしてください。</p>
+                            <input id="backupFileInput" type="file" accept=".json,application/json" hidden>
+                            <button id="selectBackupFileButton" class="secondary-button">バックアップを選択</button>
+                            <p id="backupFileName" class="file-name"></p>
+                            <button id="previewRestoreButton" class="secondary-button" disabled>復元内容を確認</button>
+                            <div id="restorePreview" class="restore-preview"></div>
+                            <button id="restoreBackupButton" class="danger-button" disabled>このバックアップで復元する</button>
+                            <p id="restoreMessage" class="success-message"></p>
+                        </div>
                     </div>
                 </section>
 
