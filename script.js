@@ -410,18 +410,19 @@ function renderHistoryItem(t) {
 }
 
 function getCategoriesForTransactionType(transactionType) {
-    const seen = new Set();
-    const result = [];
+    const hiddenLegacyCategoryNames = new Set([
+        "趣味代",
+        "遊戯代",
+        "遊技代",
+        "趣味代シュミダイ",
+        "遊技代ユウギダイ"
+    ]);
 
-    for (const c of state.categories) {
-        if ((c.transaction_type || "expense") !== transactionType) continue;
-        const label = String(c.type || c.name || "").trim();
-        if (!label || seen.has(label)) continue;
-        seen.add(label);
-        result.push({ ...c, displayType: label });
-    }
-
-    return result.sort((a, b) => a.displayType.localeCompare(b.displayType, "ja"));
+    return state.categories.filter(c =>
+        c.is_active !== false &&
+        !hiddenLegacyCategoryNames.has(c.type) &&
+        (c.transaction_type || "expense") === transactionType
+    );
 }
 
 function findCategoryRepresentative(typeLabel, transactionType = "expense") {
