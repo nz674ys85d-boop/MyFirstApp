@@ -191,3 +191,54 @@ main{padding:16px 16px 92px}.view{animation:fade .15s ease}@keyframes fade{from{
     margin: 6px 0 0;
     padding-left: 18px;
 }
+
+/* STEP14：バックアップ復元 */
+.restore-section {
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+}
+.restore-section h4 {
+    margin: 0 0 7px;
+    font-size: 15px;
+}
+.restore-section button {
+    margin-top: 8px;
+}
+.file-name {
+    margin: 7px 0;
+    font-size: 12px;
+    color: #666;
+    word-break: break-all;
+}
+.restore-preview {
+    margin-top: 10px;
+    padding: 12px;
+    background: #f7f7f7;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.7;
+}
+.restore-preview ul {
+    margin: 5px 0 0;
+    padding-left: 18px;
+}
+.danger-button {
+    width: 100%;
+    border: 0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: #8b1e1e;
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+.danger-button:disabled,
+.secondary-button:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.error-message {
+    color: #b00020;
+}
