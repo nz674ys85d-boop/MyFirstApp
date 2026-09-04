@@ -14,7 +14,7 @@ const logoutButton = document.getElementById("logoutButton");
 
 const state = {
     user: null,
-    settings: { payday_day: 25, living_budget: 0 },
+    settings: { payday_day: 25, living_budget: 0, savings_balance: 0 },
     accounts: [],
     categories: [],
     transactions: [],
@@ -115,7 +115,7 @@ async function initializeApp() {
 async function loadSettings() {
     const { data, error } = await mySupabase
         .from("settings")
-        .select("payday_day, living_budget")
+        .select("payday_day, living_budget, savings_balance")
         .eq("user_id", state.user.id)
         .maybeSingle();
 
@@ -124,7 +124,7 @@ async function loadSettings() {
     if (data) {
         state.settings = data;
     } else {
-        state.settings = { payday_day: 25, living_budget: 0 };
+        state.settings = { payday_day: 25, living_budget: 0, savings_balance: 0 };
     }
 }
 
@@ -142,7 +142,7 @@ async function loadAccounts() {
 async function loadCategories() {
     const { data, error } = await mySupabase
         .from("categories")
-        .select("id,type,name,is_active")
+        .select("id,type,name,is_active,transaction_type")
         .eq("user_id", state.user.id)
         .eq("is_active", true)
         .order("type")
@@ -286,6 +286,7 @@ function renderAll() {
     renderHistory();
     renderSpecialExpenses();
     renderAccountSettings();
+    renderCategorySettings();
 }
 
 function renderHome() {
@@ -384,29 +385,9 @@ function renderHistoryItem(t) {
 }
 
 function getCategoriesForTransactionType(transactionType) {
-    // categories.type は「生活費」「交通費」「趣味」などの
-    // 「カテゴリ名」であり、expense / income ではない。
-    //
-    // そのため、以前の
-    //   c.type === currentType
-    // という判定は誤り。
-    //
-    // 既存取引を使って、そのカテゴリが「支出」「収入」の
-    // どちらで使われているかを判定する。
-    const usedCategoryIds = new Set(
-        state.transactions
-            .filter(t => t.transaction_type === transactionType && t.category_id)
-            .map(t => t.category_id)
+    return state.categories.filter(c =>
+        (c.transaction_type || "expense") === transactionType
     );
-
-    // 既存データに紐づくカテゴリがある場合は、その種類だけ表示。
-    if (usedCategoryIds.size > 0) {
-        return state.categories.filter(c => usedCategoryIds.has(c.id));
-    }
-
-    // まだその取引タイプのカテゴリ使用実績がない場合は、
-    // 登録済みカテゴリをすべて表示して新規登録できるようにする。
-    return state.categories;
 }
 
 function populateTransactionForm() {
@@ -716,45 +697,301 @@ async function deleteSpecialExpense(id) {
     }
 }
 
+function renderAccountSettings() {
+    const list = $("accountSettingsList");
+    if (!list) return;
+
+    list.innerHTML = state.accounts.length
+        ? state.accounts.map(a => `
+            <div class="settings-row">
+                <div class="settings-row-main">
+                    <strong>${escapeHtml(a.name)}</strong>
+                    <span>現在残高：¥${yen(a.balance)}</span>
+                </div>
+                <div class="settings-row-actions">
+                    <button class="small-button" data-edit-account="${a.id}">編集</button>
+                    <button class="small-button danger-button" data-delete-account="${a.id}">削除</button>
+                </div>
+            </div>
+        `).join("")
+        : `<p class="empty-message">口座がありません</p>`;
+}
+
+function renderCategorySettings() {
+    const list = $("categorySettingsList");
+    if (!list) return;
+
+    list.innerHTML = state.categories.length
+        ? state.categories.map(c => `
+            <div class="settings-row">
+                <div class="settings-row-main">
+                    <strong>${escapeHtml(c.name)}</strong>
+                    <span>${escapeHtml(c.type)} ・ ${c.transaction_type === "income" ? "収入" : "支出"}</span>
+                </div>
+                <div class="settings-row-actions">
+                    <button class="small-button" data-edit-category="${c.id}">編集</button>
+                    <button class="small-button danger-button" data-delete-category="${c.id}">削除</button>
+                </div>
+            </div>
+        `).join("")
+        : `<p class="empty-message">種類がありません</p>`;
+}
+
 function populateSettings() {
     $("paydaySetting").value = state.settings.payday_day ?? 25;
     $("livingBudgetSetting").value = state.settings.living_budget ?? 0;
-
-    $("accountSettingsList").innerHTML = state.accounts.length
-        ? state.accounts.map(a => `
-            <div class="history-item">
-                <div class="item-name">${escapeHtml(a.name)}</div>
-                <div class="item-amount">¥${yen(a.balance)}</div>
-            </div>`).join("")
-        : `<p class="empty-message">口座がありません</p>`;
+    $("savingsBalanceSetting").value = state.settings.savings_balance ?? 0;
+    renderAccountSettings();
+    renderCategorySettings();
 }
 
 async function saveSettings() {
     const payday = Number($("paydaySetting").value);
     const budget = Number($("livingBudgetSetting").value);
+    const savings = Number($("savingsBalanceSetting").value);
 
-    if (!Number.isInteger(payday) || payday < 1 || payday > 31 || budget < 0) {
-        alert("給料日と生活費予算を正しく入力してください。");
+    if (!Number.isInteger(payday) || payday < 1 || payday > 31 ||
+        !Number.isFinite(budget) || budget < 0 ||
+        !Number.isFinite(savings) || savings < 0) {
+        alert("給料日・生活費予算・貯金額を正しく入力してください。");
         return;
     }
 
     try {
-        const { error } = await mySupabase
+        const { data, error } = await mySupabase
             .from("settings")
             .upsert({
                 user_id: state.user.id,
                 payday_day: payday,
-                living_budget: budget
-            }, { onConflict: "user_id" });
+                living_budget: budget,
+                savings_balance: savings
+            }, { onConflict: "user_id" })
+            .select("payday_day,living_budget,savings_balance")
+            .single();
 
         if (error) throw error;
 
-        state.settings = { payday_day: payday, living_budget: budget };
+        state.settings = data;
         $("settingsMessage").textContent = "設定を保存しました。";
         renderAll();
     } catch (error) {
         console.error(error);
         alert("設定を保存できませんでした。\n" + error.message);
+    }
+}
+
+function openAccountModal(accountId = null) {
+    const account = accountId
+        ? state.accounts.find(a => a.id === accountId)
+        : null;
+
+    $("accountModalTitle").textContent = account ? "口座を編集" : "口座を追加";
+    $("accountId").value = account?.id || "";
+    $("accountName").value = account?.name || "";
+    $("accountBalance").value = account ? Number(account.balance) : 0;
+    $("accountModal").classList.remove("hidden");
+}
+
+function closeAccountModal() {
+    $("accountModal").classList.add("hidden");
+}
+
+async function saveAccount() {
+    const id = $("accountId").value;
+    const name = $("accountName").value.trim();
+    const balance = Number($("accountBalance").value);
+
+    if (!name || !Number.isFinite(balance) || balance < 0) {
+        alert("口座名と残高を正しく入力してください。");
+        return;
+    }
+
+    try {
+        if (id) {
+            const { error } = await mySupabase
+                .from("accounts")
+                .update({
+                    name,
+                    balance,
+                    updated_at: new Date().toISOString()
+                })
+                .eq("id", id)
+                .eq("user_id", state.user.id);
+
+            if (error) throw error;
+        } else {
+            const { error } = await mySupabase
+                .from("accounts")
+                .insert({
+                    user_id: state.user.id,
+                    name,
+                    balance
+                });
+
+            if (error) throw error;
+        }
+
+        await loadAccounts();
+        closeAccountModal();
+        renderAll();
+    } catch (error) {
+        console.error(error);
+        alert("口座を保存できませんでした。\n" + error.message);
+    }
+}
+
+async function deleteAccount(id) {
+    const account = state.accounts.find(a => a.id === id);
+    if (!account) return;
+
+    const { count, error: countError } = await mySupabase
+        .from("transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("account_id", id)
+        .eq("user_id", state.user.id);
+
+    if (countError) {
+        console.error(countError);
+        alert("口座の使用状況を確認できませんでした。\n" + countError.message);
+        return;
+    }
+
+    if (count > 0) {
+        alert("この口座には取引履歴が紐づいているため削除できません。\n先に取引の口座を変更してください。");
+        return;
+    }
+
+    if (!confirm(`「${account.name}」を削除しますか？`)) return;
+
+    try {
+        const { error } = await mySupabase
+            .from("accounts")
+            .delete()
+            .eq("id", id)
+            .eq("user_id", state.user.id);
+
+        if (error) throw error;
+
+        await loadAccounts();
+        renderAll();
+    } catch (error) {
+        console.error(error);
+        alert("口座を削除できませんでした。\n" + error.message);
+    }
+}
+
+function openCategoryModal(categoryId = null) {
+    const category = categoryId
+        ? state.categories.find(c => c.id === categoryId)
+        : null;
+
+    $("categoryModalTitle").textContent = category ? "種類を編集" : "種類を追加";
+    $("categoryId").value = category?.id || "";
+    $("categoryName").value = category?.name || "";
+    $("categoryGroup").value = category?.type || "";
+    $("categoryTransactionType").value = category?.transaction_type || "expense";
+    $("categoryModal").classList.remove("hidden");
+}
+
+function closeCategoryModal() {
+    $("categoryModal").classList.add("hidden");
+}
+
+async function saveCategory() {
+    const id = $("categoryId").value;
+    const name = $("categoryName").value.trim();
+    const group = $("categoryGroup").value.trim();
+    const transactionType = $("categoryTransactionType").value;
+
+    if (!name || !group || !["expense", "income"].includes(transactionType)) {
+        alert("種類名・分類・支出/収入を正しく入力してください。");
+        return;
+    }
+
+    try {
+        if (id) {
+            const { error } = await mySupabase
+                .from("categories")
+                .update({
+                    name,
+                    type: group,
+                    transaction_type: transactionType,
+                    is_active: true,
+                    updated_at: new Date().toISOString()
+                })
+                .eq("id", id)
+                .eq("user_id", state.user.id);
+
+            if (error) throw error;
+        } else {
+            const { error } = await mySupabase
+                .from("categories")
+                .insert({
+                    user_id: state.user.id,
+                    type: group,
+                    name,
+                    transaction_type: transactionType,
+                    is_active: true
+                });
+
+            if (error) throw error;
+        }
+
+        await loadCategories();
+        closeCategoryModal();
+        renderAll();
+        populateTransactionForm();
+    } catch (error) {
+        console.error(error);
+        if (error.code === "23505") {
+            alert("同じ分類・種類名のカテゴリがすでに登録されています。");
+        } else {
+            alert("種類を保存できませんでした。\n" + error.message);
+        }
+    }
+}
+
+async function deleteCategory(id) {
+    const category = state.categories.find(c => c.id === id);
+    if (!category) return;
+
+    const { count, error: countError } = await mySupabase
+        .from("transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("category_id", id)
+        .eq("user_id", state.user.id);
+
+    if (countError) {
+        console.error(countError);
+        alert("種類の使用状況を確認できませんでした。\n" + countError.message);
+        return;
+    }
+
+    if (count > 0) {
+        alert("この種類には取引履歴が紐づいているため削除できません。\n履歴を残したまま安全に管理するためです。");
+        return;
+    }
+
+    if (!confirm(`「${category.name}」を削除しますか？`)) return;
+
+    try {
+        const { error } = await mySupabase
+            .from("categories")
+            .update({
+                is_active: false,
+                updated_at: new Date().toISOString()
+            })
+            .eq("id", id)
+            .eq("user_id", state.user.id);
+
+        if (error) throw error;
+
+        await loadCategories();
+        renderAll();
+        populateTransactionForm();
+    } catch (error) {
+        console.error(error);
+        alert("種類を削除できませんでした。\n" + error.message);
     }
 }
 
@@ -806,6 +1043,31 @@ document.addEventListener("click", (event) => {
     if (editSpecial) openSpecialModal(editSpecial.dataset.editSpecial);
     if (deleteSpecial) deleteSpecialExpense(deleteSpecial.dataset.deleteSpecial);
 });
+
+// 設定画面：口座・種類
+$("newAccountButton").addEventListener("click", () => openAccountModal());
+$("closeAccountModalButton").addEventListener("click", closeAccountModal);
+$("saveAccountButton").addEventListener("click", saveAccount);
+
+$("newCategoryButton").addEventListener("click", () => openCategoryModal());
+$("closeCategoryModalButton").addEventListener("click", closeCategoryModal);
+$("saveCategoryButton").addEventListener("click", saveCategory);
+
+$("accountModal").querySelector(".modal-backdrop").addEventListener("click", closeAccountModal);
+$("categoryModal").querySelector(".modal-backdrop").addEventListener("click", closeCategoryModal);
+
+document.addEventListener("click", (event) => {
+    const editAccount = event.target.closest("[data-edit-account]");
+    const deleteAccountButton = event.target.closest("[data-delete-account]");
+    const editCategory = event.target.closest("[data-edit-category]");
+    const deleteCategoryButton = event.target.closest("[data-delete-category]");
+
+    if (editAccount) openAccountModal(editAccount.dataset.editAccount);
+    if (deleteAccountButton) deleteAccount(deleteAccountButton.dataset.deleteAccount);
+    if (editCategory) openCategoryModal(editCategory.dataset.editCategory);
+    if (deleteCategoryButton) deleteCategory(deleteCategoryButton.dataset.deleteCategory);
+});
+
 
 async function checkLogin() {
     try {
