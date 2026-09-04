@@ -1,268 +1,268 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f4e9ee">
     <title>MyFirstApp - 家計簿</title>
-
     <link rel="stylesheet" href="style.css">
 </head>
-
-
 <body>
+<div class="app">
 
-    <div class="app">
+    <!-- ログイン -->
+    <section id="loginScreen" class="screen">
+        <div class="login-box">
+            <h1>MyFirstApp</h1>
+            <p class="subtitle">かんたん家計簿</p>
+            <h2>ログイン</h2>
 
-        <!-- =========================
-             ログイン画面
-        ========================== -->
-
-        <section id="loginScreen" class="screen">
-
-            <div class="login-box">
-
-                <h1>MyFirstApp</h1>
-
-                <p class="subtitle">
-                    かんたん家計簿
-                </p>
-
-
-                <h2>ログイン</h2>
-
-
-                <div class="form-group">
-
-                    <label for="loginEmail">
-                        ID
-                    </label>
-
-                    <input
-                        type="email"
-                        id="loginEmail"
-                        placeholder="メールアドレス"
-                        autocomplete="username"
-                    >
-
-                </div>
-
-
-                <div class="form-group">
-
-                    <label for="loginPassword">
-                        パスワード
-                    </label>
-
-                    <input
-                        type="password"
-                        id="loginPassword"
-                        placeholder="パスワード"
-                        autocomplete="current-password"
-                    >
-
-                </div>
-
-
-                <button
-                    id="loginButton"
-                    class="add-button"
-                >
-                    ログイン
-                </button>
-
-
-                <p
-                    id="loginError"
-                    class="error-message"
-                ></p>
-
+            <div class="form-group">
+                <label for="loginEmail">ID</label>
+                <input type="email" id="loginEmail" placeholder="メールアドレス" autocomplete="username">
             </div>
 
-        </section>
+            <div class="form-group">
+                <label for="loginPassword">パスワード</label>
+                <input type="password" id="loginPassword" placeholder="パスワード" autocomplete="current-password">
+            </div>
 
+            <button id="loginButton" class="primary-button">ログイン</button>
+            <p id="loginError" class="error-message"></p>
+        </div>
+    </section>
 
-        <!-- =========================
-             家計簿画面
-        ========================== -->
+    <!-- アプリ -->
+    <section id="appScreen" class="screen hidden">
+        <header class="app-header">
+            <div>
+                <h1>MyFirstApp</h1>
+                <p>かんたん家計簿</p>
+            </div>
+            <button id="logoutButton" class="text-button">ログアウト</button>
+        </header>
 
-        <section
-            id="appScreen"
-            class="screen hidden"
-        >
-
-            <header>
-
-                <div>
-                    <h1>MyFirstApp</h1>
-
-                    <p>
-                        かんたん家計簿
-                    </p>
+        <main>
+            <!-- ホーム -->
+            <section id="homeView" class="view">
+                <div class="cycle-card">
+                    <div>
+                        <p class="eyebrow">今月の家計</p>
+                        <h2 id="cycleLabel">読み込み中…</h2>
+                    </div>
+                    <p id="paydayLabel" class="muted">給料日：--日</p>
                 </div>
 
-
-                <button
-                    id="logoutButton"
-                    class="logout-button"
-                >
-                    ログアウト
-                </button>
-
-            </header>
-
-
-            <main>
-
-                <!-- 今月の合計 -->
-
-                <section class="summary">
-
-                    <p>
-                        今月の支出
-                    </p>
-
-                    <div class="total">
-                        ¥<span id="totalAmount">0</span>
+                <section class="balance-card">
+                    <p class="card-label">現在の残高</p>
+                    <div class="balance-total">¥<span id="totalBalance">0</span></div>
+                    <div class="account-grid">
+                        <div><span>銀行</span><strong>¥<span id="bankBalance">0</span></strong></div>
+                        <div><span>財布</span><strong>¥<span id="walletBalance">0</span></strong></div>
+                        <div><span>PayPay</span><strong>¥<span id="paypayBalance">0</span></strong></div>
                     </div>
-
                 </section>
 
-
-                <!-- 支出入力 -->
-
-                <section class="input-section">
-
-                    <h2>
-                        支出を追加
-                    </h2>
-
-
-                    <div class="form-group">
-
-                        <label for="amount">
-                            金額
-                        </label>
-
-                        <input
-                            type="number"
-                            id="amount"
-                            placeholder="例：1000"
-                            min="0"
-                        >
-
+                <section class="stats-grid">
+                    <div class="stat-card">
+                        <span>今月の支出</span>
+                        <strong>¥<span id="cycleExpense">0</span></strong>
                     </div>
-
-
-                    <div class="form-group">
-
-                        <label for="category">
-                            項目
-                        </label>
-
-                        <select id="category">
-
-                            <option value="食費">
-                                食費
-                            </option>
-
-                            <option value="日用品">
-                                日用品
-                            </option>
-
-                            <option value="交通費">
-                                交通費
-                            </option>
-
-                            <option value="趣味">
-                                趣味
-                            </option>
-
-                            <option value="美容">
-                                美容
-                            </option>
-
-                            <option value="その他">
-                                その他
-                            </option>
-
-                        </select>
-
+                    <div class="stat-card">
+                        <span>今月の収入</span>
+                        <strong>¥<span id="cycleIncome">0</span></strong>
                     </div>
-
-
-                    <div class="form-group">
-
-                        <label for="memo">
-                            メモ
-                        </label>
-
-                        <input
-                            type="text"
-                            id="memo"
-                            placeholder="例：スーパー"
-                        >
-
+                    <div class="stat-card">
+                        <span>生活費の支出</span>
+                        <strong>¥<span id="livingExpense">0</span></strong>
                     </div>
-
-
-                    <button
-                        id="addButton"
-                        class="add-button"
-                    >
-                        支出を追加
-                    </button>
-
+                    <div class="stat-card">
+                        <span>給料日まで</span>
+                        <strong><span id="daysUntilPayday">-</span>日</strong>
+                    </div>
                 </section>
 
-
-                <!-- 支出一覧 -->
-
-                <section class="list-section">
-
-                    <h2>
-                        支出一覧
-                    </h2>
-
-                    <div id="expenseList">
-
-                        <p
-                            id="emptyMessage"
-                            class="empty-message"
-                        >
-                            まだ支出がありません
-                        </p>
-
+                <section class="budget-card">
+                    <div class="section-heading">
+                        <h2>生活費</h2>
+                        <span id="budgetStatus" class="badge">設定確認中</span>
                     </div>
-
+                    <div class="budget-row">
+                        <span>残り</span>
+                        <strong>¥<span id="livingRemaining">0</span></strong>
+                    </div>
+                    <div class="progress-track">
+                        <div id="livingProgressBar" class="progress-bar"></div>
+                    </div>
+                    <div class="budget-meta">
+                        <span>支出 ¥<span id="livingSpent">0</span></span>
+                        <span>予算 ¥<span id="livingBudget">0</span></span>
+                    </div>
+                    <div class="mini-stats">
+                        <div><span>1日あたり目安</span><strong>¥<span id="dailyGuideline">0</span></strong></div>
+                        <div><span>現在の平均</span><strong>¥<span id="averageDaily">0</span></strong></div>
+                        <div><span>サイクル予測</span><strong>¥<span id="livingForecast">0</span></strong></div>
+                    </div>
+                    <p id="budgetNote" class="note">生活費予算は後の設定画面で登録できます。</p>
                 </section>
 
-            </main>
+                <section class="recent-section">
+                    <div class="section-heading">
+                        <h2>最近の支出</h2>
+                        <button id="goHistoryButton" class="link-button">すべて見る</button>
+                    </div>
+                    <div id="recentList"></div>
+                </section>
+            </section>
 
-        </section>
+            <!-- 履歴 -->
+            <section id="historyView" class="view hidden">
+                <div class="page-title">
+                    <h2>履歴</h2>
+                    <p>登録した収入・支出を確認できます。</p>
+                </div>
+                <div class="filter-row">
+                    <input id="historySearch" type="search" placeholder="名目・メモを検索">
+                    <select id="historyTypeFilter">
+                        <option value="all">すべて</option>
+                        <option value="expense">支出</option>
+                        <option value="income">収入</option>
+                        <option value="opening_balance">初期残高</option>
+                    </select>
+                </div>
+                <div id="historyList" class="history-list"></div>
+            </section>
 
+            <!-- 追加 -->
+            <section id="addView" class="view hidden">
+                <div class="page-title">
+                    <h2 id="formTitle">追加</h2>
+                    <p>収入・支出を登録できます。</p>
+                </div>
+
+                <div class="segmented">
+                    <button type="button" class="type-tab active" data-type="expense">支出</button>
+                    <button type="button" class="type-tab" data-type="income">収入</button>
+                </div>
+
+                <div class="form-group">
+                    <label for="transactionDate">日付</label>
+                    <input type="date" id="transactionDate">
+                </div>
+
+                <div class="form-group">
+                    <label for="transactionAmount">金額</label>
+                    <input type="number" id="transactionAmount" min="1" inputmode="numeric" placeholder="例：1000">
+                </div>
+
+                <div class="form-group">
+                    <label for="transactionCategory">種類</label>
+                    <select id="transactionCategory"></select>
+                </div>
+
+                <div class="form-group">
+                    <label for="transactionName">名目</label>
+                    <input type="text" id="transactionName" maxlength="100" placeholder="例：スーパー">
+                </div>
+
+                <div class="form-group">
+                    <label for="transactionAccount">支払元・入金先</label>
+                    <select id="transactionAccount"></select>
+                </div>
+
+                <div class="form-group">
+                    <label for="transactionMemo">メモ</label>
+                    <textarea id="transactionMemo" rows="3" maxlength="500" placeholder="必要ならメモを入力"></textarea>
+                </div>
+
+                <button id="saveTransactionButton" class="primary-button">登録する</button>
+                <button id="cancelEditButton" class="secondary-button hidden">編集をキャンセル</button>
+            </section>
+
+            <!-- 特別費 -->
+            <section id="specialView" class="view hidden">
+                <div class="page-title">
+                    <h2>特別費</h2>
+                    <p>予定と実績を分けて管理できます。</p>
+                </div>
+                <button id="newSpecialButton" class="primary-button small-button">＋ 特別費を追加</button>
+                <div id="specialList" class="special-list"></div>
+            </section>
+
+            <!-- 設定 -->
+            <section id="settingsView" class="view hidden">
+                <div class="page-title">
+                    <h2>設定</h2>
+                    <p>家計簿の基本設定を変更できます。</p>
+                </div>
+
+                <section class="settings-card">
+                    <h3>家計設定</h3>
+                    <div class="form-group">
+                        <label for="paydaySetting">給料日</label>
+                        <div class="suffix-input"><input type="number" id="paydaySetting" min="1" max="31"><span>日</span></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="livingBudgetSetting">生活費予算</label>
+                        <div class="suffix-input"><span>¥</span><input type="number" id="livingBudgetSetting" min="0" inputmode="numeric"></div>
+                    </div>
+                    <button id="saveSettingsButton" class="primary-button">設定を保存</button>
+                    <p id="settingsMessage" class="success-message"></p>
+                </section>
+
+                <section class="settings-card">
+                    <h3>アカウント</h3>
+                    <div id="accountSettingsList"></div>
+                    <p class="note">口座残高は、現在のExcel残高を基準に設定済みです。</p>
+                </section>
+            </section>
+        </main>
+
+        <!-- 下部ナビ -->
+        <nav class="bottom-nav">
+            <button class="nav-button active" data-view="homeView"><span>🏠</span><small>ホーム</small></button>
+            <button class="nav-button" data-view="historyView"><span>📋</span><small>履歴</small></button>
+            <button class="nav-button add-nav" data-view="addView"><span>＋</span><small>追加</small></button>
+            <button class="nav-button" data-view="specialView"><span>🎯</span><small>特別費</small></button>
+            <button class="nav-button" data-view="settingsView"><span>⚙️</span><small>設定</small></button>
+        </nav>
+    </section>
+</div>
+
+<!-- 特別費モーダル -->
+<div id="specialModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2 id="specialModalTitle">特別費を追加</h2>
+            <button id="closeSpecialModalButton" class="close-button">×</button>
+        </div>
+        <div class="form-group">
+            <label for="specialDate">予定日</label>
+            <input type="date" id="specialDate">
+        </div>
+        <div class="form-group">
+            <label for="specialName">名目</label>
+            <input type="text" id="specialName" maxlength="100" placeholder="例：美容院">
+        </div>
+        <div class="form-group">
+            <label for="specialPlanned">予定金額</label>
+            <input type="number" id="specialPlanned" min="0" inputmode="numeric" placeholder="例：8000">
+        </div>
+        <div class="form-group">
+            <label for="specialActual">実績金額</label>
+            <input type="number" id="specialActual" min="0" inputmode="numeric" placeholder="0">
+        </div>
+        <div class="form-group">
+            <label for="specialMemo">メモ</label>
+            <textarea id="specialMemo" rows="3" maxlength="500"></textarea>
+        </div>
+        <button id="saveSpecialButton" class="primary-button">保存する</button>
     </div>
+</div>
 
-
-    <!-- Supabase本体 -->
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-
-    <!-- 自分のSupabase設定 -->
-
-    <script src="supabase.js"></script>
-
-
-    <!-- MyFirstAppの処理 -->
-
-    <script src="script.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
+<script src="script.js"></script>
 </body>
-
 </html>
