@@ -479,30 +479,53 @@ async function saveTransaction() {
             account_id: accountId
         };
 
-        let error;
-
+        // -----------------------------------------------------
+        // DBへの保存だけを「取引処理」として扱う。
+        // 保存後の画面再読込でエラーが起きても、
+        // 「保存に失敗した」と誤表示しない。
+        // -----------------------------------------------------
         if (state.editingTransactionId) {
-            ({ error } = await mySupabase
+            const { error } = await mySupabase
                 .from("transactions")
                 .update(payload)
                 .eq("id", state.editingTransactionId)
-                .eq("user_id", state.user.id));
+                .eq("user_id", state.user.id);
+
+            if (error) throw error;
         } else {
-            ({ error } = await mySupabase
+            const { error } = await mySupabase
                 .from("transactions")
-                .insert({ ...payload, user_id: state.user.id }));
+                .insert({
+                    ...payload,
+                    user_id: state.user.id
+                });
+
+            if (error) throw error;
         }
 
-        if (error) throw error;
+        // -----------------------------------------------------
+        // DB保存は成功。
+        // ここからは画面データを最新状態へ同期する。
+        // accounts.balance はSTEP8のDBトリガーが自動更新する。
+        // -----------------------------------------------------
+        try {
+            await Promise.all([
+                loadTransactions(),
+                loadAccounts()
+            ]);
+        } catch (refreshError) {
+            console.error("保存後の画面データ更新エラー:", refreshError);
+            // 保存自体は成功しているので、
+            // 「取引を実行できませんでした」は表示しない。
+        }
 
-        await loadTransactions();
-        await loadAccounts();
         resetTransactionForm();
         renderAll();
         showView("historyView");
+
     } catch (error) {
-        console.error(error);
-        alert("取引を保存できませんでした。\n" + error.message);
+        console.error("取引保存エラー:", error);
+        alert("取引を保存できませんでした。\n" + (error.message || "原因不明のエラー"));
     } finally {
         button.disabled = false;
     }
@@ -512,6 +535,11 @@ async function deleteTransaction(id) {
     if (!confirm("この取引を削除しますか？")) return;
 
     try {
+        // -----------------------------------------------------
+        // DBから削除。
+        // accounts.balance はSTEP8のDELETEトリガーが
+        // 自動的に元へ戻す。
+        // -----------------------------------------------------
         const { error } = await mySupabase
             .from("transactions")
             .delete()
@@ -520,11 +548,27 @@ async function deleteTransaction(id) {
 
         if (error) throw error;
 
-        await loadTransactions();
+        // -----------------------------------------------------
+        // 削除成功後、履歴と口座残高を同時に最新化。
+        // 以前はloadAccounts()を呼んでいなかったため、
+        // 財布残高が画面上だけ古いままになる問題があった。
+        // -----------------------------------------------------
+        try {
+            await Promise.all([
+                loadTransactions(),
+                loadAccounts()
+            ]);
+        } catch (refreshError) {
+            console.error("削除後の画面データ更新エラー:", refreshError);
+            // 削除自体は成功しているので、
+            // 削除失敗のメッセージは表示しない。
+        }
+
         renderAll();
+
     } catch (error) {
-        console.error(error);
-        alert("削除できませんでした。\n" + error.message);
+        console.error("取引削除エラー:", error);
+        alert("削除できませんでした。\n" + (error.message || "原因不明のエラー"));
     }
 }
 
