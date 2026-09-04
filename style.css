@@ -294,3 +294,33 @@ select option:checked {
     -webkit-text-fill-color: #333 !important;
     background-color: #f3eef0 !important;
 }
+
+
+/* STEP18：特別費の表示期間切り替え */
+.special-filter{
+    margin:12px 0 4px;
+    padding:12px;
+    background:#fafafa;
+    border:1px solid var(--line);
+    border-radius:10px;
+}
+.special-filter label{
+    display:block;
+    font-size:12px;
+    font-weight:700;
+    margin-bottom:6px;
+}
+.special-filter select{
+    width:100%;
+    min-height:42px;
+    padding:8px 10px;
+    border:1px solid #ddd;
+    border-radius:8px;
+    font-size:14px;
+}
+.filter-note{
+    margin:7px 0 0;
+    color:#999;
+    font-size:10px;
+    line-height:1.5;
+}
