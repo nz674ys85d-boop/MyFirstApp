@@ -242,3 +242,19 @@ main{padding:16px 16px 92px}.view{animation:fade .15s ease}@keyframes fade{from{
 .error-message {
     color: #b00020;
 }
+
+/* STEP15：種類の正式整理 */
+.classification-note {
+    margin-top: 20px;
+    padding: 12px 14px;
+    background: #f7f7f7;
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.65;
+}
+.classification-note strong {
+    font-size: 14px;
+}
+.classification-note p {
+    margin: 6px 0 0;
+}
