@@ -505,7 +505,7 @@ function populateTransactionForm() {
     $("transactionCategory").innerHTML =
         categories.length
             ? `<option value="">選択してください</option>` +
-              categories.map(c => `<option value="${c.id}">${escapeHtml(c.displayType)}</option>`).join("")
+              categories.map(c => `<option value="${c.id}">${escapeHtml(c.type)}</option>`).join("")
             : `<option value="">種類が登録されていません</option>`;
 
     $("transactionAccount").innerHTML =
