@@ -272,3 +272,25 @@ main{padding:16px 16px 92px}.view{animation:fade .15s ease}@keyframes fade{from{
 .progress-value-row strong {
     font-variant-numeric: tabular-nums;
 }
+
+
+/* ============================================================
+   STEP16.2：iPhone / iOS Safari の select 表示を強制的にライト化
+   ネイティブ選択UIで option の文字が背景に埋もれる問題を防止。
+   ============================================================ */
+select {
+    color: #333 !important;
+    -webkit-text-fill-color: #333 !important;
+    color-scheme: light;
+    background-color: #fff !important;
+}
+select option {
+    color: #333 !important;
+    -webkit-text-fill-color: #333 !important;
+    background-color: #fff !important;
+}
+select option:checked {
+    color: #333 !important;
+    -webkit-text-fill-color: #333 !important;
+    background-color: #f3eef0 !important;
+}
