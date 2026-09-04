@@ -311,6 +311,14 @@ function calculateHome() {
     };
 }
 
+function renderAll() {
+    renderHome();
+    renderHistory();
+    renderSpecialExpenses();
+    renderAccountSettings();
+    renderCategorySettings();
+}
+
 function renderHome() {
     const d = calculateHome();
     const startText = `${d.start.getMonth() + 1}/${d.start.getDate()}`;
@@ -402,9 +410,25 @@ function renderHistoryItem(t) {
 }
 
 function getCategoriesForTransactionType(transactionType) {
-    return state.categories.filter(c =>
-        (c.transaction_type || "expense") === transactionType
-    );
+    const seen = new Set();
+    const result = [];
+
+    for (const c of state.categories) {
+        if ((c.transaction_type || "expense") !== transactionType) continue;
+        const label = String(c.type || c.name || "").trim();
+        if (!label || seen.has(label)) continue;
+        seen.add(label);
+        result.push({ ...c, displayType: label });
+    }
+
+    return result.sort((a, b) => a.displayType.localeCompare(b.displayType, "ja"));
+}
+
+function findCategoryRepresentative(typeLabel, transactionType = "expense") {
+    return state.categories.find(c =>
+        (c.transaction_type || "expense") === transactionType &&
+        String(c.type || "").trim() === String(typeLabel || "").trim()
+    ) || null;
 }
 
 function populateTransactionForm() {
@@ -414,7 +438,7 @@ function populateTransactionForm() {
     $("transactionCategory").innerHTML =
         categories.length
             ? `<option value="">選択してください</option>` +
-              categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")
+              categories.map(c => `<option value="${c.id}">${escapeHtml(c.displayType)}</option>`).join("")
             : `<option value="">種類が登録されていません</option>`;
 
     $("transactionAccount").innerHTML =
@@ -582,7 +606,9 @@ function startEditTransaction(id) {
     $("transactionName").value = t.name;
     $("transactionMemo").value = t.memo || "";
     populateTransactionForm();
-    $("transactionCategory").value = t.category_id || "";
+    const categoryType = getCategoryType(t);
+    const representative = findCategoryRepresentative(categoryType, t.transaction_type);
+    $("transactionCategory").value = representative?.id || "";
     $("transactionAccount").value = t.account_id || "";
     $("saveTransactionButton").textContent = "変更を保存";
     $("cancelEditButton").classList.remove("hidden");
@@ -734,20 +760,42 @@ function renderAccountSettings() {
         : `<p class="empty-message">口座がありません</p>`;
 }
 
+function getUniqueCategoryTypes() {
+    const map = new Map();
+    for (const c of state.categories) {
+        const typeLabel = String(c.type || "").trim();
+        if (!typeLabel) continue;
+        if (!map.has(typeLabel)) {
+            map.set(typeLabel, {
+                type: typeLabel,
+                transaction_type: c.transaction_type || "expense",
+                categoryIds: []
+            });
+        }
+        const item = map.get(typeLabel);
+        item.categoryIds.push(c.id);
+        // If any category in this type is used for income only, preserve that
+        // information; otherwise default to expense.
+        if (c.transaction_type === "income") item.transaction_type = "income";
+    }
+    return [...map.values()].sort((a,b) => a.type.localeCompare(b.type, "ja"));
+}
+
 function renderCategorySettings() {
     const list = $("categorySettingsList");
     if (!list) return;
 
-    list.innerHTML = state.categories.length
-        ? state.categories.map(c => `
+    const types = getUniqueCategoryTypes();
+    list.innerHTML = types.length
+        ? types.map(c => `
             <div class="settings-row">
                 <div class="settings-row-main">
-                    <strong>${escapeHtml(c.name)}</strong>
-                    <span>${escapeHtml(c.type)} ・ ${c.transaction_type === "income" ? "収入" : "支出"}</span>
+                    <strong>${escapeHtml(c.type)}</strong>
+                    <span>${c.transaction_type === "income" ? "収入" : "支出"}</span>
                 </div>
                 <div class="settings-row-actions">
-                    <button class="small-button" data-edit-category="${c.id}">編集</button>
-                    <button class="small-button danger-button" data-delete-category="${c.id}">削除</button>
+                    <button class="small-button" data-edit-category-type="${escapeHtml(c.type)}">編集</button>
+                    <button class="small-button danger-button" data-delete-category-type="${escapeHtml(c.type)}">削除</button>
                 </div>
             </div>
         `).join("")
@@ -897,16 +945,15 @@ async function deleteAccount(id) {
     }
 }
 
-function openCategoryModal(categoryId = null) {
-    const category = categoryId
-        ? state.categories.find(c => c.id === categoryId)
-        : null;
+function openCategoryModal(typeLabel = null) {
+    const type = typeLabel ? String(typeLabel) : "";
+    const item = type ? getUniqueCategoryTypes().find(x => x.type === type) : null;
 
-    $("categoryModalTitle").textContent = category ? "種類を編集" : "種類を追加";
-    $("categoryId").value = category?.id || "";
-    $("categoryName").value = category?.name || "";
-    $("categoryGroup").value = category?.type || "";
-    $("categoryTransactionType").value = category?.transaction_type || "expense";
+    $("categoryModalTitle").textContent = item ? "種類を編集" : "種類を追加";
+    $("categoryId").value = type;
+    $("categoryName").value = item?.type || "";
+    $("categoryGroup").value = item?.type || "";
+    $("categoryTransactionType").value = item?.transaction_type || "expense";
     $("categoryModal").classList.remove("hidden");
 }
 
@@ -915,28 +962,26 @@ function closeCategoryModal() {
 }
 
 async function saveCategory() {
-    const id = $("categoryId").value;
-    const name = $("categoryName").value.trim();
-    const group = $("categoryGroup").value.trim();
+    const oldType = $("categoryId").value.trim();
+    const newType = $("categoryName").value.trim();
     const transactionType = $("categoryTransactionType").value;
 
-    if (!name || !group || !["expense", "income"].includes(transactionType)) {
-        alert("種類名・分類・支出/収入を正しく入力してください。");
+    if (!newType || !["expense", "income"].includes(transactionType)) {
+        alert("種類名と支出／収入を正しく入力してください。");
         return;
     }
 
     try {
-        if (id) {
+        if (oldType) {
             const { error } = await mySupabase
                 .from("categories")
                 .update({
-                    name,
-                    type: group,
+                    type: newType,
                     transaction_type: transactionType,
                     is_active: true
                 })
-                .eq("id", id)
-                .eq("user_id", state.user.id);
+                .eq("user_id", state.user.id)
+                .eq("type", oldType);
 
             if (error) throw error;
         } else {
@@ -944,8 +989,8 @@ async function saveCategory() {
                 .from("categories")
                 .insert({
                     user_id: state.user.id,
-                    type: group,
-                    name,
+                    type: newType,
+                    name: newType,
                     transaction_type: transactionType,
                     is_active: true
                 });
@@ -958,24 +1003,39 @@ async function saveCategory() {
         renderAll();
         populateTransactionForm();
     } catch (error) {
-        console.error(error);
+        console.error("種類保存エラー:", error);
         if (error.code === "23505") {
-            alert("同じ分類・種類名のカテゴリがすでに登録されています。");
+            alert("同じ分類・種類名のカテゴリがすでに登録されています。別の種類名にしてください。");
         } else {
-            alert("種類を保存できませんでした。\n" + error.message);
+            alert("種類を保存できませんでした。\n" + (error.message || "原因不明のエラー"));
         }
     }
 }
 
-async function deleteCategory(id) {
-    const category = state.categories.find(c => c.id === id);
-    if (!category) return;
+async function deleteCategoryType(typeLabel) {
+    const type = String(typeLabel || "").trim();
+    if (!type) return;
+
+    const { data: rows, error: rowsError } = await mySupabase
+        .from("categories")
+        .select("id,type,name")
+        .eq("user_id", state.user.id)
+        .eq("type", type);
+
+    if (rowsError) {
+        console.error(rowsError);
+        alert("種類の使用状況を確認できませんでした。\n" + rowsError.message);
+        return;
+    }
+
+    const ids = (rows || []).map(r => r.id);
+    if (!ids.length) return;
 
     const { count, error: countError } = await mySupabase
         .from("transactions")
         .select("id", { count: "exact", head: true })
-        .eq("category_id", id)
-        .eq("user_id", state.user.id);
+        .eq("user_id", state.user.id)
+        .in("category_id", ids);
 
     if (countError) {
         console.error(countError);
@@ -988,16 +1048,14 @@ async function deleteCategory(id) {
         return;
     }
 
-    if (!confirm(`「${category.name}」を削除しますか？`)) return;
+    if (!confirm(`「${type}」を削除しますか？`)) return;
 
     try {
         const { error } = await mySupabase
             .from("categories")
-            .update({
-                is_active: false
-            })
-            .eq("id", id)
-            .eq("user_id", state.user.id);
+            .update({ is_active: false })
+            .eq("user_id", state.user.id)
+            .eq("type", type);
 
         if (error) throw error;
 
@@ -1005,8 +1063,8 @@ async function deleteCategory(id) {
         renderAll();
         populateTransactionForm();
     } catch (error) {
-        console.error(error);
-        alert("種類を削除できませんでした。\n" + error.message);
+        console.error("種類削除エラー:", error);
+        alert("種類を削除できませんでした。\n" + (error.message || "原因不明のエラー"));
     }
 }
 
@@ -1074,13 +1132,13 @@ $("categoryModal").querySelector(".modal-backdrop").addEventListener("click", cl
 document.addEventListener("click", (event) => {
     const editAccount = event.target.closest("[data-edit-account]");
     const deleteAccountButton = event.target.closest("[data-delete-account]");
-    const editCategory = event.target.closest("[data-edit-category]");
-    const deleteCategoryButton = event.target.closest("[data-delete-category]");
+    const editCategory = event.target.closest("[data-edit-category-type]");
+    const deleteCategoryButton = event.target.closest("[data-delete-category-type]");
 
     if (editAccount) openAccountModal(editAccount.dataset.editAccount);
     if (deleteAccountButton) deleteAccount(deleteAccountButton.dataset.deleteAccount);
-    if (editCategory) openCategoryModal(editCategory.dataset.editCategory);
-    if (deleteCategoryButton) deleteCategory(deleteCategoryButton.dataset.deleteCategory);
+    if (editCategory) openCategoryModal(editCategory.dataset.editCategoryType);
+    if (deleteCategoryButton) deleteCategoryType(deleteCategoryButton.dataset.deleteCategoryType);
 });
 
 
