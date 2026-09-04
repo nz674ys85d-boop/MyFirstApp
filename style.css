@@ -258,3 +258,17 @@ main{padding:16px 16px 92px}.view{animation:fade .15s ease}@keyframes fade{from{
 .classification-note p {
     margin: 6px 0 0;
 }
+
+
+/* STEP16: Excel H4「生活費進捗」の数値表示 */
+.progress-value-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+    font-size: 13px;
+}
+
+.progress-value-row strong {
+    font-variant-numeric: tabular-nums;
+}
