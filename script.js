@@ -1295,4 +1295,268 @@ if (checkDataIntegrityButton) {
     checkDataIntegrityButton.addEventListener("click", checkDataIntegrity);
 }
 
+// ============================================================
+// STEP14：バックアップからの復元
+// ・JSONを読み込んで検証→プレビュー→明示確認→DBへ反映
+// ・現在ログインしているユーザー自身のデータだけを対象にする
+// ・バックアップ内のuser_idが現在ユーザーと一致しない場合は拒否
+// ・既存データを削除してから復元する方式は採用せず、upsertで反映する
+// ============================================================
+
+let selectedBackup = null;
+
+const backupFileInput = $("backupFileInput");
+const selectBackupFileButton = $("selectBackupFileButton");
+const backupFileName = $("backupFileName");
+const previewRestoreButton = $("previewRestoreButton");
+const restorePreview = $("restorePreview");
+const restoreBackupButton = $("restoreBackupButton");
+const restoreMessage = $("restoreMessage");
+
+function setRestoreMessage(message, isError = false) {
+    if (!restoreMessage) return;
+    restoreMessage.textContent = message;
+    restoreMessage.className = isError ? "success-message error-message" : "success-message";
+}
+
+function validateBackupShape(data) {
+    if (!data || typeof data !== "object") return "JSONの内容が正しくありません。";
+    if (data.app !== "MyFirstApp") return "MyFirstAppのバックアップではありません。";
+    if (data.backup_version !== 1) return "対応していないバックアップ形式です。";
+    if (!data.user_id || !state.user?.id || data.user_id !== state.user.id) {
+        return "現在ログインしているユーザーのバックアップではありません。";
+    }
+
+    const arrays = ["accounts", "categories", "transactions", "special_expenses"];
+    for (const key of arrays) {
+        if (!Array.isArray(data[key])) return `${key} のデータ形式が正しくありません。`;
+    }
+    if (!data.settings || typeof data.settings !== "object" || Array.isArray(data.settings)) {
+        return "設定データの形式が正しくありません。";
+    }
+
+    const accountIds = new Set();
+    for (const a of data.accounts) {
+        if (!a.id || !a.name) return "口座データにIDまたは名前がありません。";
+        if (accountIds.has(a.id)) return `口座IDが重複しています：${a.id}`;
+        accountIds.add(a.id);
+        if (Number(a.balance) < 0) return `口座残高が不正です：${a.name}`;
+    }
+
+    const categoryIds = new Set();
+    for (const c of data.categories) {
+        if (!c.id || !c.name) return "種類データにIDまたは名前がありません。";
+        if (categoryIds.has(c.id)) return `種類IDが重複しています：${c.id}`;
+        categoryIds.add(c.id);
+        if (!["expense","income"].includes(c.transaction_type || "expense")) {
+            return `種類の取引区分が不正です：${c.name}`;
+        }
+    }
+
+    const txIds = new Set();
+    for (const t of data.transactions) {
+        if (!t.id || !t.transaction_date || !t.name) return "取引データに必須項目がありません。";
+        if (txIds.has(t.id)) return `取引IDが重複しています：${t.id}`;
+        txIds.add(t.id);
+        if (!(Number(t.amount) > 0)) return `取引金額が不正です：${t.name}`;
+        if (!["income","expense","opening_balance"].includes(t.transaction_type)) {
+            return `取引種別が不正です：${t.name}`;
+        }
+        if (t.account_id && !accountIds.has(t.account_id)) return `存在しない口座を参照しています：${t.name}`;
+        if (t.category_id && !categoryIds.has(t.category_id)) return `存在しない種類を参照しています：${t.name}`;
+    }
+
+    for (const s of data.special_expenses) {
+        if (!s.id || !s.name) return "特別費データに必須項目がありません。";
+        if (Number(s.planned_amount) < 0 || Number(s.actual_amount) < 0) {
+            return `特別費の金額が不正です：${s.name}`;
+        }
+    }
+
+    if (Number(data.settings.payday_day) < 1 || Number(data.settings.payday_day) > 31) {
+        return "給料日が不正です。";
+    }
+    if (Number(data.settings.living_budget) < 0 || Number(data.settings.savings_balance) < 0) {
+        return "設定の金額が不正です。";
+    }
+    return null;
+}
+
+function renderRestorePreview(data) {
+    restorePreview.innerHTML = `
+        <strong>復元内容</strong>
+        <ul>
+            <li>口座：${data.accounts.length}件</li>
+            <li>種類：${data.categories.length}件</li>
+            <li>取引：${data.transactions.length}件</li>
+            <li>特別費：${data.special_expenses.length}件</li>
+            <li>給料日：${escapeHtml(String(data.settings.payday_day))}日</li>
+            <li>貯金額：¥${Number(data.settings.savings_balance || 0).toLocaleString()}</li>
+        </ul>
+        <p>※復元実行前に、現在のデータをSTEP12のバックアップ機能で保存してください。</p>
+    `;
+}
+
+if (selectBackupFileButton && backupFileInput) {
+    selectBackupFileButton.addEventListener("click", () => backupFileInput.click());
+
+    backupFileInput.addEventListener("change", async () => {
+        selectedBackup = null;
+        previewRestoreButton.disabled = true;
+        restoreBackupButton.disabled = true;
+        restorePreview.innerHTML = "";
+        setRestoreMessage("");
+
+        const file = backupFileInput.files?.[0];
+        if (!file) return;
+
+        backupFileName.textContent = file.name;
+        try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+            const error = validateBackupShape(data);
+            if (error) {
+                setRestoreMessage(error, true);
+                return;
+            }
+            selectedBackup = data;
+            previewRestoreButton.disabled = false;
+            setRestoreMessage("バックアップを読み込みました。まず「復元内容を確認」を押してください。");
+        } catch (error) {
+            console.error(error);
+            setRestoreMessage("バックアップJSONを読み込めませんでした。", true);
+        }
+    });
+}
+
+if (previewRestoreButton) {
+    previewRestoreButton.addEventListener("click", () => {
+        if (!selectedBackup) return;
+        renderRestorePreview(selectedBackup);
+        restoreBackupButton.disabled = false;
+    });
+}
+
+async function restoreBackup() {
+    if (!selectedBackup || !state.user) return;
+
+    const latestError = validateBackupShape(selectedBackup);
+    if (latestError) {
+        setRestoreMessage(latestError, true);
+        return;
+    }
+
+    const confirmed = window.confirm(
+        "このバックアップのデータを現在の家計簿へ反映します。\n\n" +
+        "先に現在のデータをバックアップしましたか？\n\n" +
+        "この操作は元に戻すボタンがありません。続行しますか？"
+    );
+    if (!confirmed) return;
+
+    restoreBackupButton.disabled = true;
+    previewRestoreButton.disabled = true;
+    setRestoreMessage("復元しています。画面を閉じないでください。");
+
+    try {
+        const settingsPayload = {
+            user_id: state.user.id,
+            payday_day: Number(selectedBackup.settings.payday_day),
+            living_budget: Number(selectedBackup.settings.living_budget || 0),
+            savings_balance: Number(selectedBackup.settings.savings_balance || 0)
+        };
+
+        const { error: settingsError } = await mySupabase
+            .from("settings")
+            .upsert(settingsPayload, { onConflict: "user_id" });
+        if (settingsError) throw settingsError;
+
+        const accounts = selectedBackup.accounts.map(a => ({
+            id: a.id,
+            user_id: state.user.id,
+            name: a.name,
+            balance: Number(a.balance),
+            created_at: a.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }));
+        if (accounts.length) {
+            const { error } = await mySupabase.from("accounts").upsert(accounts, { onConflict: "id" });
+            if (error) throw error;
+        }
+
+        const categories = selectedBackup.categories.map(c => ({
+            id: c.id,
+            user_id: state.user.id,
+            type: c.type,
+            name: c.name,
+            is_active: c.is_active !== false,
+            transaction_type: c.transaction_type || "expense",
+            created_at: c.created_at || new Date().toISOString()
+        }));
+        if (categories.length) {
+            const { error } = await mySupabase.from("categories").upsert(categories, { onConflict: "id" });
+            if (error) throw error;
+        }
+
+        const transactions = selectedBackup.transactions.map(t => ({
+            id: t.id,
+            user_id: state.user.id,
+            account_id: t.account_id || null,
+            transaction_date: t.transaction_date,
+            transaction_type: t.transaction_type,
+            category_id: t.category_id || null,
+            name: t.name,
+            amount: Number(t.amount),
+            memo: t.memo ?? null,
+            created_at: t.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }));
+        if (transactions.length) {
+            const { error } = await mySupabase.from("transactions").upsert(transactions, { onConflict: "id" });
+            if (error) throw error;
+        }
+
+        const specialExpenses = selectedBackup.special_expenses.map(s => ({
+            id: s.id,
+            user_id: state.user.id,
+            planned_date: s.planned_date || null,
+            name: s.name,
+            planned_amount: Number(s.planned_amount || 0),
+            actual_amount: Number(s.actual_amount || 0),
+            memo: s.memo ?? null,
+            created_at: s.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }));
+        if (specialExpenses.length) {
+            const { error } = await mySupabase.from("special_expenses").upsert(specialExpenses, { onConflict: "id" });
+            if (error) throw error;
+        }
+
+        // DBへの反映後、最新値を再取得して画面を同期。
+        await Promise.all([
+            loadSettings(),
+            loadAccounts(),
+            loadCategories(),
+            loadTransactions(),
+            loadSpecialExpenses()
+        ]);
+        renderAll();
+
+        setRestoreMessage("復元が完了しました。現在の画面も更新しました。");
+        restorePreview.innerHTML = "";
+        backupFileInput.value = "";
+        backupFileName.textContent = "";
+        selectedBackup = null;
+    } catch (error) {
+        console.error("restoreBackup error:", error);
+        setRestoreMessage(`復元できませんでした：${error.message || "不明なエラー"}`, true);
+    } finally {
+        previewRestoreButton.disabled = !selectedBackup;
+        restoreBackupButton.disabled = !selectedBackup;
+    }
+}
+
+if (restoreBackupButton) {
+    restoreBackupButton.addEventListener("click", restoreBackup);
+}
+
 checkLogin();
