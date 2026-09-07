@@ -583,10 +583,19 @@ function renderHome() {
 
     $("totalBalance").textContent = yen(d.totalBalance);
 
-    const findBalance = (name) => state.accounts.find(a => a.name === name)?.balance || 0;
-    $("bankBalance").textContent = yen(findBalance("銀行"));
-    $("walletBalance").textContent = yen(findBalance("財布"));
-    $("paypayBalance").textContent = yen(findBalance("PayPay"));
+    // 設定画面で登録されているすべての口座をホーム画面に自動表示する。
+    // 口座名を「銀行・財布・PayPay」に固定しないため、新しく追加した口座もそのまま反映される。
+    const homeAccountList = $("homeAccountList");
+    if (homeAccountList) {
+        homeAccountList.innerHTML = state.accounts.length
+            ? state.accounts.map(account => `
+                <div>
+                    <span>${escapeHtml(account.name || "名称未設定")}</span>
+                    <strong>¥${yen(account.balance)}</strong>
+                </div>
+            `).join("")
+            : `<div class="account-empty">口座が登録されていません</div>`;
+    }
 
     $("cycleExpense").textContent = yen(d.expenses.reduce((s,t)=>s+Number(t.amount),0));
     $("cycleIncome").textContent = yen(d.incomes.reduce((s,t)=>s+Number(t.amount),0));
@@ -998,11 +1007,19 @@ function renderSpecialExpenses() {
 function openSpecialModal(id = null) {
     state.editingSpecialId = id;
     const item = id ? state.specialExpenses.find(x => x.id === id) : null;
-    $("specialModalTitle").textContent = item ? "特別費を編集" : "特別費を追加";
+    const isEditing = Boolean(item);
+
+    $("specialModalTitle").textContent = isEditing ? "特別費を編集" : "特別費を追加";
     $("specialDate").value = item?.planned_date || todayString();
     $("specialName").value = item?.name || "";
     $("specialPlanned").value = item?.planned_amount ?? "";
     $("specialActual").value = item?.actual_amount ?? 0;
+    $("specialAddAmount").value = "";
+
+    // 既存の特別費を編集するときだけ「今回使った金額を追加」を表示する。
+    // ここに入力した金額は、現在の実績に自動加算して保存する。
+    $("specialAddAmountGroup").classList.toggle("hidden", !isEditing);
+
     $("specialMemo").value = item?.memo || "";
     $("specialModal").classList.remove("hidden");
 }
@@ -1021,12 +1038,16 @@ function copySpecialExpense(id) {
     $("specialName").value = item.name || "";
     $("specialPlanned").value = item.planned_amount ?? "";
     $("specialActual").value = item.actual_amount ?? 0;
+    $("specialAddAmount").value = "";
+    $("specialAddAmountGroup").classList.add("hidden");
     $("specialMemo").value = item.memo || "";
     $("specialModal").classList.remove("hidden");
 }
 
 function closeSpecialModal() {
     state.editingSpecialId = null;
+    $("specialAddAmount").value = "";
+    $("specialAddAmountGroup").classList.add("hidden");
     $("specialModal").classList.add("hidden");
 }
 
@@ -1034,10 +1055,25 @@ async function saveSpecialExpense() {
     const plannedDate = $("specialDate").value || null;
     const name = $("specialName").value.trim();
     const plannedAmount = Number($("specialPlanned").value);
-    const actualAmount = Number($("specialActual").value || 0);
+    const currentActualAmount = Number($("specialActual").value || 0);
+    const addAmount = Number($("specialAddAmount").value || 0);
     const memo = $("specialMemo").value.trim();
 
-    if (!name || plannedAmount < 0 || actualAmount < 0) {
+    // 編集時は「今回使った金額」を既存の実績に自動加算する。
+    // 新規追加・コピー時は追加欄が非表示なので、実績欄の値をそのまま保存する。
+    const actualAmount = currentActualAmount + (
+        state.editingSpecialId ? addAmount : 0
+    );
+
+    if (
+        !name ||
+        !Number.isFinite(plannedAmount) ||
+        !Number.isFinite(currentActualAmount) ||
+        !Number.isFinite(addAmount) ||
+        plannedAmount < 0 ||
+        currentActualAmount < 0 ||
+        addAmount < 0
+    ) {
         alert("名目・金額を正しく入力してください。");
         return;
     }
