@@ -324,3 +324,21 @@ select option:checked {
     font-size:10px;
     line-height:1.5;
 }
+
+
+/* STEP19：ホーム画面の口座一覧を追加した口座数に応じて見やすく表示 */
+.account-grid:empty {
+    display: none;
+}
+.account-grid .account-empty {
+    grid-column: 1 / -1;
+    padding: 14px;
+    color: #999;
+    font-size: 12px;
+    background: rgba(255,255,255,.7);
+}
+@media (max-width: 380px) {
+    .account-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
