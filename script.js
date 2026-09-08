@@ -1653,6 +1653,40 @@ document.querySelector(".modal-backdrop").addEventListener("click", closeSpecial
 
 document.addEventListener("click", (event) => {
 
+    // ==============================
+    // 取引履歴
+    // ==============================
+
+    const editTransaction = event.target.closest(
+        "[data-edit-transaction]"
+    );
+
+    const deleteTransactionButton = event.target.closest(
+        "[data-delete-transaction]"
+    );
+
+
+    // ==============================
+    // 特別費
+    // ==============================
+
+    const editSpecial = event.target.closest(
+        "[data-edit-special]"
+    );
+
+    const copySpecial = event.target.closest(
+        "[data-copy-special]"
+    );
+
+    const deleteSpecial = event.target.closest(
+        "[data-delete-special]"
+    );
+
+
+    // ==============================
+    // 口座
+    // ==============================
+
     const moveAccountUp = event.target.closest(
         "[data-move-account-up]"
     );
@@ -1669,6 +1703,11 @@ document.addEventListener("click", (event) => {
         "[data-delete-account]"
     );
 
+
+    // ==============================
+    // 種類
+    // ==============================
+
     const editCategory = event.target.closest(
         "[data-edit-category-type]"
     );
@@ -1679,16 +1718,74 @@ document.addEventListener("click", (event) => {
 
 
     // ==============================
+    // 取引編集
+    // ==============================
+
+    if (editTransaction) {
+        startEditTransaction(
+            editTransaction.dataset.editTransaction
+        );
+        return;
+    }
+
+
+    // ==============================
+    // 取引削除
+    // ==============================
+
+    if (deleteTransactionButton) {
+        deleteTransaction(
+            deleteTransactionButton.dataset.deleteTransaction
+        );
+        return;
+    }
+
+
+    // ==============================
+    // 特別費編集
+    // ==============================
+
+    if (editSpecial) {
+        openSpecialModal(
+            editSpecial.dataset.editSpecial
+        );
+        return;
+    }
+
+
+    // ==============================
+    // 特別費コピー
+    // ==============================
+
+    if (copySpecial) {
+        copySpecialExpense(
+            copySpecial.dataset.copySpecial
+        );
+        return;
+    }
+
+
+    // ==============================
+    // 特別費削除
+    // ==============================
+
+    if (deleteSpecial) {
+        deleteSpecialExpense(
+            deleteSpecial.dataset.deleteSpecial
+        );
+        return;
+    }
+
+
+    // ==============================
     // 口座を上へ
     // ==============================
 
     if (moveAccountUp) {
-
         moveAccount(
             moveAccountUp.dataset.moveAccountUp,
             "up"
         );
-
         return;
     }
 
@@ -1698,12 +1795,10 @@ document.addEventListener("click", (event) => {
     // ==============================
 
     if (moveAccountDown) {
-
         moveAccount(
             moveAccountDown.dataset.moveAccountDown,
             "down"
         );
-
         return;
     }
 
@@ -1713,11 +1808,9 @@ document.addEventListener("click", (event) => {
     // ==============================
 
     if (editAccount) {
-
         openAccountModal(
             editAccount.dataset.editAccount
         );
-
         return;
     }
 
@@ -1727,11 +1820,9 @@ document.addEventListener("click", (event) => {
     // ==============================
 
     if (deleteAccountButton) {
-
         deleteAccount(
             deleteAccountButton.dataset.deleteAccount
         );
-
         return;
     }
 
@@ -1741,11 +1832,9 @@ document.addEventListener("click", (event) => {
     // ==============================
 
     if (editCategory) {
-
         openCategoryModal(
             editCategory.dataset.editCategoryType
         );
-
         return;
     }
 
@@ -1755,11 +1844,10 @@ document.addEventListener("click", (event) => {
     // ==============================
 
     if (deleteCategoryButton) {
-
         deleteCategoryType(
             deleteCategoryButton.dataset.deleteCategoryType
         );
-
+        return;
     }
 
 });
