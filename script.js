@@ -139,9 +139,12 @@ async function loadSettings() {
 async function loadAccounts() {
     const { data, error } = await mySupabase
         .from("accounts")
-        .select("id,name,balance")
+        .select("id,name,balance,created_at")
         .eq("user_id", requireCurrentUserId())
-        .order("name");
+        // ホーム画面・取引入力など、口座を表示する場所は
+        // 「登録した古い順」で統一する。
+        .order("created_at", { ascending: true, nullsFirst: false })
+        .order("id", { ascending: true });
 
     if (error) throw error;
     state.accounts = data || [];
