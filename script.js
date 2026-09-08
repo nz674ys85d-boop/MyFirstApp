@@ -139,11 +139,9 @@ async function loadSettings() {
 async function loadAccounts() {
     const { data, error } = await mySupabase
         .from("accounts")
-        .select("id,name,balance,created_at")
+        .select("id,name,balance,created_at,display_order")
         .eq("user_id", requireCurrentUserId())
-        // ホーム画面・取引入力など、口座を表示する場所は
-        // 「登録した古い順」で統一する。
-        .order("created_at", { ascending: true, nullsFirst: false })
+        .order("display_order", { ascending: true })
         .order("id", { ascending: true });
 
     if (error) throw error;
@@ -1144,19 +1142,105 @@ function renderAccountSettings() {
     if (!list) return;
 
     list.innerHTML = state.accounts.length
-        ? state.accounts.map(a => `
+        ? state.accounts.map((a, index) => `
             <div class="settings-row">
                 <div class="settings-row-main">
                     <strong>${escapeHtml(a.name)}</strong>
                     <span>現在残高：¥${yen(a.balance)}</span>
                 </div>
+
                 <div class="settings-row-actions">
-                    <button class="small-button" data-edit-account="${a.id}">編集</button>
-                    <button class="small-button danger-button" data-delete-account="${a.id}">削除</button>
+
+                    <button
+                        class="small-button"
+                        data-move-account-up="${a.id}"
+                        ${index === 0 ? "disabled" : ""}
+                    >
+                        ⬆️
+                    </button>
+
+                    <button
+                        class="small-button"
+                        data-move-account-down="${a.id}"
+                        ${index === state.accounts.length - 1 ? "disabled" : ""}
+                    >
+                        ⬇️
+                    </button>
+
+                    <button
+                        class="small-button"
+                        data-edit-account="${a.id}"
+                    >
+                        編集
+                    </button>
+
+                    <button
+                        class="small-button danger-button"
+                        data-delete-account="${a.id}"
+                    >
+                        削除
+                    </button>
+
                 </div>
             </div>
         `).join("")
         : `<p class="empty-message">口座がありません</p>`;
+}
+
+async function moveAccount(accountId, direction) {
+    const currentIndex = state.accounts.findIndex(
+        account => account.id === accountId
+    );
+
+    if (currentIndex === -1) return;
+
+    const targetIndex =
+        direction === "up"
+            ? currentIndex - 1
+            : currentIndex + 1;
+
+    if (
+        targetIndex < 0 ||
+        targetIndex >= state.accounts.length
+    ) {
+        return;
+    }
+
+    // 画面上の順番を入れ替える
+    const newAccounts = [...state.accounts];
+
+    const temporary = newAccounts[currentIndex];
+    newAccounts[currentIndex] = newAccounts[targetIndex];
+    newAccounts[targetIndex] = temporary;
+
+    try {
+        // 全口座に新しい順番を保存する
+        const updates = newAccounts.map((account, index) => ({
+            id: account.id,
+            user_id: requireCurrentUserId(),
+            display_order: index + 1,
+            updated_at: new Date().toISOString()
+        }));
+
+        const { error } = await mySupabase
+            .from("accounts")
+            .upsert(updates, { onConflict: "id" });
+
+        if (error) throw error;
+
+        // DBから改めて正しい順番で読み込む
+        await loadAccounts();
+
+        // 全画面を更新
+        renderAll();
+
+    } catch (error) {
+        console.error(error);
+        alert(
+            "口座の順番を変更できませんでした。\n" +
+            (error.message || "原因不明のエラー")
+        );
+    }
 }
 
 function getUniqueCategoryTypes() {
@@ -1271,7 +1355,12 @@ async function saveAccount() {
     }
 
     try {
+
+        // ==============================
+        // 編集
+        // ==============================
         if (id) {
+
             const { error } = await mySupabase
                 .from("accounts")
                 .update({
@@ -1283,24 +1372,57 @@ async function saveAccount() {
                 .eq("user_id", requireCurrentUserId());
 
             if (error) throw error;
-        } else {
+
+        }
+
+        // ==============================
+        // 新規追加
+        // ==============================
+        else {
+
+            // 現在登録されている口座の中で
+            // 一番大きいdisplay_orderを取得
+            const maxDisplayOrder = state.accounts.reduce(
+                (max, account) =>
+                    Math.max(
+                        max,
+                        Number(account.display_order || 0)
+                    ),
+                0
+            );
+
+            // 必ず一番最後に追加
+            const newDisplayOrder =
+                maxDisplayOrder + 1;
+
             const { error } = await mySupabase
                 .from("accounts")
                 .insert({
                     user_id: requireCurrentUserId(),
                     name,
-                    balance
+                    balance,
+                    display_order: newDisplayOrder
                 });
 
             if (error) throw error;
         }
 
+        // 最新の順番を再取得
         await loadAccounts();
+
         closeAccountModal();
+
         renderAll();
+
     } catch (error) {
+
         console.error(error);
-        alert("口座を保存できませんでした。\n" + error.message);
+
+        alert(
+            "口座を保存できませんでした。\n" +
+            (error.message || "原因不明のエラー")
+        );
+
     }
 }
 
@@ -1509,17 +1631,116 @@ $("saveSpecialButton").addEventListener("click", saveSpecialExpense);
 document.querySelector(".modal-backdrop").addEventListener("click", closeSpecialModal);
 
 document.addEventListener("click", (event) => {
-    const editTransaction = event.target.closest("[data-edit-transaction]");
-    const deleteTransactionButton = event.target.closest("[data-delete-transaction]");
-    const editSpecial = event.target.closest("[data-edit-special]");
-    const copySpecial = event.target.closest("[data-copy-special]");
-    const deleteSpecial = event.target.closest("[data-delete-special]");
 
-    if (editTransaction) startEditTransaction(editTransaction.dataset.editTransaction);
-    if (deleteTransactionButton) deleteTransaction(deleteTransactionButton.dataset.deleteTransaction);
-    if (editSpecial) openSpecialModal(editSpecial.dataset.editSpecial);
-    if (copySpecial) copySpecialExpense(copySpecial.dataset.copySpecial);
-    if (deleteSpecial) deleteSpecialExpense(deleteSpecial.dataset.deleteSpecial);
+    const moveAccountUp = event.target.closest(
+        "[data-move-account-up]"
+    );
+
+    const moveAccountDown = event.target.closest(
+        "[data-move-account-down]"
+    );
+
+    const editAccount = event.target.closest(
+        "[data-edit-account]"
+    );
+
+    const deleteAccountButton = event.target.closest(
+        "[data-delete-account]"
+    );
+
+    const editCategory = event.target.closest(
+        "[data-edit-category-type]"
+    );
+
+    const deleteCategoryButton = event.target.closest(
+        "[data-delete-category-type]"
+    );
+
+
+    // ==============================
+    // 口座を上へ
+    // ==============================
+
+    if (moveAccountUp) {
+
+        moveAccount(
+            moveAccountUp.dataset.moveAccountUp,
+            "up"
+        );
+
+        return;
+    }
+
+
+    // ==============================
+    // 口座を下へ
+    // ==============================
+
+    if (moveAccountDown) {
+
+        moveAccount(
+            moveAccountDown.dataset.moveAccountDown,
+            "down"
+        );
+
+        return;
+    }
+
+
+    // ==============================
+    // 口座編集
+    // ==============================
+
+    if (editAccount) {
+
+        openAccountModal(
+            editAccount.dataset.editAccount
+        );
+
+        return;
+    }
+
+
+    // ==============================
+    // 口座削除
+    // ==============================
+
+    if (deleteAccountButton) {
+
+        deleteAccount(
+            deleteAccountButton.dataset.deleteAccount
+        );
+
+        return;
+    }
+
+
+    // ==============================
+    // 種類編集
+    // ==============================
+
+    if (editCategory) {
+
+        openCategoryModal(
+            editCategory.dataset.editCategoryType
+        );
+
+        return;
+    }
+
+
+    // ==============================
+    // 種類削除
+    // ==============================
+
+    if (deleteCategoryButton) {
+
+        deleteCategoryType(
+            deleteCategoryButton.dataset.deleteCategoryType
+        );
+
+    }
+
 });
 
 // 設定画面：口座・種類
@@ -1875,14 +2096,25 @@ async function restoreBackup() {
             .upsert(settingsPayload, { onConflict: "user_id" });
         if (settingsError) throw settingsError;
 
-        const accounts = selectedBackup.accounts.map(a => ({
-            id: a.id,
-            user_id: requireCurrentUserId(),
-            name: a.name,
-            balance: Number(a.balance),
-            created_at: a.created_at || new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        }));
+        const accounts = selectedBackup.accounts.map((a, index) => ({
+    id: a.id,
+    user_id: requireCurrentUserId(),
+    name: a.name,
+    balance: Number(a.balance),
+
+    // 古いバックアップにdisplay_orderがない場合でも
+    // バックアップ内の並び順をそのまま使用する
+    display_order:
+        Number.isFinite(Number(a.display_order))
+            ? Number(a.display_order)
+            : index + 1,
+
+    created_at:
+        a.created_at || new Date().toISOString(),
+
+    updated_at:
+        new Date().toISOString()
+}));
         if (accounts.length) {
             const { error } = await mySupabase.from("accounts").upsert(accounts, { onConflict: "id" });
             if (error) throw error;
