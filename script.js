@@ -1206,36 +1206,56 @@ async function moveAccount(accountId, direction) {
         return;
     }
 
-    // 画面上の順番を入れ替える
-    const newAccounts = [...state.accounts];
-
-    const temporary = newAccounts[currentIndex];
-    newAccounts[currentIndex] = newAccounts[targetIndex];
-    newAccounts[targetIndex] = temporary;
+    // 入れ替える2つの口座
+    const currentAccount = state.accounts[currentIndex];
+    const targetAccount = state.accounts[targetIndex];
 
     try {
-        // 全口座に新しい順番を保存する
-        const updates = newAccounts.map((account, index) => ({
-            id: account.id,
-            user_id: requireCurrentUserId(),
-            display_order: index + 1,
-            updated_at: new Date().toISOString()
-        }));
+        // 一時的な値を使って、display_orderの重複を防ぐ
+        const temporaryOrder = -Date.now();
 
-        const { error } = await mySupabase
+        // ① 移動する口座を一時的な番号に変更
+        let { error } = await mySupabase
             .from("accounts")
-            .upsert(updates, { onConflict: "id" });
+            .update({
+                display_order: temporaryOrder
+            })
+            .eq("id", currentAccount.id)
+            .eq("user_id", requireCurrentUserId());
 
         if (error) throw error;
 
-        // DBから改めて正しい順番で読み込む
+        // ② 相手の口座を移動元の順番へ
+        ({ error } = await mySupabase
+            .from("accounts")
+            .update({
+                display_order: currentAccount.display_order
+            })
+            .eq("id", targetAccount.id)
+            .eq("user_id", requireCurrentUserId()));
+
+        if (error) throw error;
+
+        // ③ 移動元の口座を相手の順番へ
+        ({ error } = await mySupabase
+            .from("accounts")
+            .update({
+                display_order: targetAccount.display_order
+            })
+            .eq("id", currentAccount.id)
+            .eq("user_id", requireCurrentUserId()));
+
+        if (error) throw error;
+
+        // 最新の並び順を取得
         await loadAccounts();
 
-        // 全画面を更新
+        // 画面を更新
         renderAll();
 
     } catch (error) {
-        console.error(error);
+        console.error("口座並び替えエラー:", error);
+
         alert(
             "口座の順番を変更できませんでした。\n" +
             (error.message || "原因不明のエラー")
@@ -2102,18 +2122,15 @@ async function restoreBackup() {
     name: a.name,
     balance: Number(a.balance),
 
-    // 古いバックアップにdisplay_orderがない場合でも
-    // バックアップ内の並び順をそのまま使用する
+    // display_orderがある新しいバックアップならその順番を使用。
+    // 古いバックアップなら、バックアップ内の並び順をそのまま使用。
     display_order:
         Number.isFinite(Number(a.display_order))
             ? Number(a.display_order)
             : index + 1,
 
-    created_at:
-        a.created_at || new Date().toISOString(),
-
-    updated_at:
-        new Date().toISOString()
+    created_at: a.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString()
 }));
         if (accounts.length) {
             const { error } = await mySupabase.from("accounts").upsert(accounts, { onConflict: "id" });
