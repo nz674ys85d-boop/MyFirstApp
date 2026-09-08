@@ -1211,8 +1211,9 @@ async function moveAccount(accountId, direction) {
     const targetAccount = state.accounts[targetIndex];
 
     try {
-        // 一時的な値を使って、display_orderの重複を防ぐ
-        const temporaryOrder = -Date.now();
+        // display_orderは通常1以上なので、
+        // 一時的に-1を使う
+        const temporaryOrder = -1;
 
         // ① 移動する口座を一時的な番号に変更
         let { error } = await mySupabase
@@ -1247,10 +1248,10 @@ async function moveAccount(accountId, direction) {
 
         if (error) throw error;
 
-        // 最新の並び順を取得
+        // 最新の順番を取得
         await loadAccounts();
 
-        // 画面を更新
+        // 全画面を更新
         renderAll();
 
     } catch (error) {
