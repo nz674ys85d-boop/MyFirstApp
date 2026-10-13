@@ -17,6 +17,7 @@ const state = {
     settings: { payday_day: 25, living_budget: 0, savings_balance: 0 },
     accounts: [],
     categories: [],
+    allCategories: [],
     transactions: [],
     specialExpenses: [],
     transactionType: "expense",
@@ -149,16 +150,18 @@ async function loadAccounts() {
 }
 
 async function loadCategories() {
+    // 設定画面では非表示の種類も管理できるよう全件取得し、
+    // 取引入力用の候補には有効な種類だけを使用する。
     const { data, error } = await mySupabase
         .from("categories")
         .select("id,type,name,is_active,transaction_type")
         .eq("user_id", requireCurrentUserId())
-        .eq("is_active", true)
         .order("type")
         .order("name");
 
     if (error) throw error;
-    state.categories = data || [];
+    state.allCategories = data || [];
+    state.categories = state.allCategories.filter(c => c.is_active !== false);
 }
 
 async function loadTransactions() {
@@ -1341,18 +1344,20 @@ async function moveAccount(accountId, direction) {
 
 function getUniqueCategoryTypes() {
     const map = new Map();
-    for (const c of state.categories) {
+    for (const c of (state.allCategories || state.categories)) {
         const typeLabel = String(c.type || "").trim();
         if (!typeLabel) continue;
         if (!map.has(typeLabel)) {
             map.set(typeLabel, {
                 type: typeLabel,
                 transaction_type: c.transaction_type || "expense",
-                categoryIds: []
+                categoryIds: [],
+                is_active: false
             });
         }
         const item = map.get(typeLabel);
         item.categoryIds.push(c.id);
+        if (c.is_active !== false) item.is_active = true;
         // If any category in this type is used for income only, preserve that
         // information; otherwise default to expense.
         if (c.transaction_type === "income") item.transaction_type = "income";
@@ -1370,9 +1375,10 @@ function renderCategorySettings() {
             <div class="settings-row">
                 <div class="settings-row-main">
                     <strong>${escapeHtml(c.type)}</strong>
-                    <span>${c.transaction_type === "income" ? "収入" : "支出"}</span>
+                    <span>${c.transaction_type === "income" ? "収入" : "支出"}・${c.is_active ? "表示中" : "非表示"}</span>
                 </div>
                 <div class="settings-row-actions">
+                    <button class="small-button" data-toggle-category-type="${escapeHtml(c.type)}" data-next-active="${c.is_active ? "false" : "true"}">${c.is_active ? "非表示にする" : "表示する"}</button>
                     <button class="small-button" data-edit-category-type="${escapeHtml(c.type)}">編集</button>
                     <button class="small-button danger-button" data-delete-category-type="${escapeHtml(c.type)}">削除</button>
                 </div>
@@ -1626,6 +1632,31 @@ async function saveCategory() {
         } else {
             alert("種類を保存できませんでした。\n" + (error.message || "原因不明のエラー"));
         }
+    }
+}
+
+async function toggleCategoryType(typeLabel, nextActive) {
+    const type = String(typeLabel || "").trim();
+    if (!type) return;
+
+    const action = nextActive ? "表示" : "非表示";
+    if (!confirm(`「${type}」を${action}にしますか？\\n${nextActive ? "取引入力の種類候補に表示されます。" : "取引入力の種類候補から隠れます。過去の履歴は削除されません。"}`)) return;
+
+    try {
+        const { error } = await mySupabase
+            .from("categories")
+            .update({ is_active: nextActive })
+            .eq("user_id", requireCurrentUserId())
+            .eq("type", type);
+
+        if (error) throw error;
+
+        await loadCategories();
+        populateTransactionForm();
+        renderAll();
+    } catch (error) {
+        console.error("種類の表示切り替えエラー:", error);
+        alert("種類の表示状態を変更できませんでした。\\n" + (error.message || "原因不明のエラー"));
     }
 }
 
@@ -1944,9 +1975,16 @@ document.addEventListener("click", (event) => {
     const deleteAccountButton = event.target.closest("[data-delete-account]");
     const editCategory = event.target.closest("[data-edit-category-type]");
     const deleteCategoryButton = event.target.closest("[data-delete-category-type]");
+    const toggleCategoryButton = event.target.closest("[data-toggle-category-type]");
 
     if (editAccount) openAccountModal(editAccount.dataset.editAccount);
     if (deleteAccountButton) deleteAccount(deleteAccountButton.dataset.deleteAccount);
+    if (toggleCategoryButton) {
+        toggleCategoryType(
+            toggleCategoryButton.dataset.toggleCategoryType,
+            toggleCategoryButton.dataset.nextActive === "true"
+        );
+    }
     if (editCategory) openCategoryModal(editCategory.dataset.editCategoryType);
     if (deleteCategoryButton) deleteCategoryType(deleteCategoryButton.dataset.deleteCategoryType);
 });
