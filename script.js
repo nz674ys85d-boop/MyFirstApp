@@ -790,6 +790,63 @@ function resetTransactionForm() {
     $("cancelEditButton").classList.add("hidden");
 }
 
+// 指定した日付が属する給料日サイクルを取得する。
+function getCycleRangeForDate(dateString) {
+    const targetDate = new Date(`${dateString}T00:00:00`);
+    const payday = Math.min(31, Math.max(1, Number(state.settings.payday_day || 25)));
+    const year = targetDate.getFullYear();
+    const month = targetDate.getMonth();
+    const thisMonthPayday = getActualPayday(year, month, payday);
+
+    const start = targetDate >= thisMonthPayday
+        ? thisMonthPayday
+        : getActualPayday(year, month - 1, payday);
+
+    const nextPayday = getActualPayday(
+        start.getFullYear(),
+        start.getMonth() + 1,
+        payday
+    );
+    const end = new Date(nextPayday);
+    end.setDate(end.getDate() - 1);
+
+    return { start, end };
+}
+
+async function addExpenseToMatchingSpecialExpense(date, categoryType, amount) {
+    const normalizedType = String(categoryType || "").trim();
+    if (!normalizedType) return;
+
+    const { start, end } = getCycleRangeForDate(date);
+    const matches = state.specialExpenses.filter(item => {
+        if (String(item.name || "").trim() !== normalizedType) return false;
+        if (!item.planned_date) return false;
+        const plannedDate = new Date(`${item.planned_date}T00:00:00`);
+        return plannedDate >= start && plannedDate <= end;
+    });
+
+    // 同じ期間・同じ名称の特別費が複数あると振り分け先を特定できないため、
+    // 誤って複数件へ加算しない。
+    if (matches.length !== 1) {
+        if (matches.length > 1) {
+            console.warn("同じ期間・名称の特別費が複数あるため、実績への自動加算をスキップしました。", {
+                date, categoryType: normalizedType, matches
+            });
+        }
+        return;
+    }
+
+    const special = matches[0];
+    const nextActualAmount = Number(special.actual_amount || 0) + amount;
+    const { error } = await mySupabase
+        .from("special_expenses")
+        .update({ actual_amount: nextActualAmount })
+        .eq("id", special.id)
+        .eq("user_id", requireCurrentUserId());
+
+    if (error) throw error;
+}
+
 async function saveTransaction() {
     const date = $("transactionDate").value;
     const amount = Number($("transactionAmount").value);
@@ -811,6 +868,8 @@ async function saveTransaction() {
     const button = $("saveTransactionButton");
     button.disabled = true;
 
+    let transactionSaved = false;
+
     try {
         const payload = {
             transaction_date: date,
@@ -822,11 +881,6 @@ async function saveTransaction() {
             account_id: accountId
         };
 
-        // -----------------------------------------------------
-        // DBへの保存だけを「取引処理」として扱う。
-        // 保存後の画面再読込でエラーが起きても、
-        // 「保存に失敗した」と誤表示しない。
-        // -----------------------------------------------------
         if (state.editingTransactionId) {
             const { error } = await mySupabase
                 .from("transactions")
@@ -835,6 +889,7 @@ async function saveTransaction() {
                 .eq("user_id", requireCurrentUserId());
 
             if (error) throw error;
+            transactionSaved = true;
         } else {
             const { error } = await mySupabase
                 .from("transactions")
@@ -844,22 +899,38 @@ async function saveTransaction() {
                 });
 
             if (error) throw error;
+            transactionSaved = true;
+
+            // 新規の「支出」登録時のみ、選択した種類と同じ名称の特別費へ実績を加算。
+            // 編集時は二重加算を防ぐため自動加算しない。
+            if (state.transactionType === "expense") {
+                const selectedCategory = state.categories.find(c =>
+                    String(c.id) === String(categoryId)
+                );
+                const categoryType = String(selectedCategory?.type || "").trim();
+
+                try {
+                    await addExpenseToMatchingSpecialExpense(date, categoryType, amount);
+                } catch (specialError) {
+                    console.error("特別費実績の自動加算に失敗しました:", specialError);
+                    alert(
+                        "支出は登録されましたが、特別費の実績を自動更新できませんでした。\n" +
+                        (specialError.message || "原因不明のエラー") +
+                        "\n特別費画面で実績を確認してください。"
+                    );
+                }
+            }
         }
 
-        // -----------------------------------------------------
-        // DB保存は成功。
-        // ここからは画面データを最新状態へ同期する。
-        // accounts.balance はSTEP8のDBトリガーが自動更新する。
-        // -----------------------------------------------------
+        // 保存後の画面データを最新状態へ同期する。
         try {
             await Promise.all([
                 loadTransactions(),
-                loadAccounts()
+                loadAccounts(),
+                loadSpecialExpenses()
             ]);
         } catch (refreshError) {
             console.error("保存後の画面データ更新エラー:", refreshError);
-            // 保存自体は成功しているので、
-            // 「取引を実行できませんでした」は表示しない。
         }
 
         resetTransactionForm();
@@ -868,7 +939,11 @@ async function saveTransaction() {
 
     } catch (error) {
         console.error("取引保存エラー:", error);
-        alert("取引を保存できませんでした。\n" + (error.message || "原因不明のエラー"));
+        if (!transactionSaved) {
+            alert("取引を保存できませんでした。\n" + (error.message || "原因不明のエラー"));
+        } else {
+            alert("取引は登録されましたが、画面の更新に失敗しました。画面を再読み込みしてください。");
+        }
     } finally {
         button.disabled = false;
     }
